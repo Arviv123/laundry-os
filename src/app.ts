@@ -73,6 +73,9 @@ import { swaggerSpec } from './config/swagger';
 const app  = express();
 const PORT = process.env.PORT ?? 3000;
 
+// Trust proxy (Render uses reverse proxy)
+app.set('trust proxy', 1);
+
 // ─── Security ─────────────────────────────────────────────────
 app.use(helmet({ contentSecurityPolicy: false }));
 const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? '').split(',').map(o => o.trim()).filter(Boolean);
