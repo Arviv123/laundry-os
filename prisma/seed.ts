@@ -17,7 +17,7 @@ async function main() {
     create: {
       id: 'laundry-demo-tenant',
       name: 'מכבסת הניצוץ',
-      businessId: '516789012',
+      businessNumber: '516789012',
       address: {
         street: 'רחוב הרצל 42',
         city: 'תל אביב',
@@ -25,7 +25,6 @@ async function main() {
       },
       phone: '03-5551234',
       email: 'info@nitzutz-laundry.co.il',
-      industry: 'LAUNDRY',
       isActive: true,
     },
   });
@@ -80,41 +79,41 @@ async function main() {
   // ─── Chart of Accounts (Israeli Standard) ─────────────────────
   const accounts = [
     // Assets (נכסים)
-    { code: '1100', name: 'קופה ראשית',          type: 'ASSET',     subType: 'CURRENT_ASSET' },
-    { code: '1200', name: 'בנק לאומי',            type: 'ASSET',     subType: 'CURRENT_ASSET' },
-    { code: '1300', name: 'לקוחות',               type: 'ASSET',     subType: 'CURRENT_ASSET' },
-    { code: '1400', name: 'מלאי חומרי ניקוי',      type: 'ASSET',     subType: 'CURRENT_ASSET' },
-    { code: '1500', name: 'ציוד ומכונות',          type: 'ASSET',     subType: 'FIXED_ASSET' },
-    { code: '1510', name: 'פחת מצטבר',            type: 'ASSET',     subType: 'FIXED_ASSET' },
+    { code: '1100', name: 'קופה ראשית',          type: 'ASSET' },
+    { code: '1200', name: 'בנק לאומי',            type: 'ASSET' },
+    { code: '1300', name: 'לקוחות',               type: 'ASSET' },
+    { code: '1400', name: 'מלאי חומרי ניקוי',      type: 'ASSET' },
+    { code: '1500', name: 'ציוד ומכונות',          type: 'ASSET' },
+    { code: '1510', name: 'פחת מצטבר',            type: 'ASSET' },
 
     // Liabilities (התחייבויות)
-    { code: '2100', name: 'ספקים',                type: 'LIABILITY', subType: 'CURRENT_LIABILITY' },
-    { code: '2200', name: 'מע"מ תשומות',          type: 'LIABILITY', subType: 'CURRENT_LIABILITY' },
-    { code: '2300', name: 'מע"מ עסקאות',          type: 'LIABILITY', subType: 'CURRENT_LIABILITY' },
-    { code: '2400', name: 'הלוואות',              type: 'LIABILITY', subType: 'LONG_TERM_LIABILITY' },
-    { code: '2500', name: 'מקדמות לקוחות',        type: 'LIABILITY', subType: 'CURRENT_LIABILITY' },
+    { code: '2100', name: 'ספקים',                type: 'LIABILITY' },
+    { code: '2200', name: 'מע"מ תשומות',          type: 'LIABILITY' },
+    { code: '2300', name: 'מע"מ עסקאות',          type: 'LIABILITY' },
+    { code: '2400', name: 'הלוואות',              type: 'LIABILITY' },
+    { code: '2500', name: 'מקדמות לקוחות',        type: 'LIABILITY' },
 
     // Equity (הון עצמי)
-    { code: '3100', name: 'הון עצמי',             type: 'EQUITY',    subType: 'EQUITY' },
-    { code: '3200', name: 'רווח שוטף',            type: 'EQUITY',    subType: 'EQUITY' },
+    { code: '3100', name: 'הון עצמי',             type: 'EQUITY' },
+    { code: '3200', name: 'רווח שוטף',            type: 'EQUITY' },
 
     // Revenue (הכנסות)
-    { code: '4100', name: 'הכנסות מכביסה',        type: 'REVENUE',   subType: 'OPERATING_REVENUE' },
-    { code: '4200', name: 'הכנסות מניקוי יבש',    type: 'REVENUE',   subType: 'OPERATING_REVENUE' },
-    { code: '4300', name: 'הכנסות מגיהוץ',        type: 'REVENUE',   subType: 'OPERATING_REVENUE' },
-    { code: '4400', name: 'הכנסות ממשלוחים',      type: 'REVENUE',   subType: 'OPERATING_REVENUE' },
-    { code: '4500', name: 'הכנסות אחרות',         type: 'REVENUE',   subType: 'OPERATING_REVENUE' },
+    { code: '4100', name: 'הכנסות מכביסה',        type: 'REVENUE' },
+    { code: '4200', name: 'הכנסות מניקוי יבש',    type: 'REVENUE' },
+    { code: '4300', name: 'הכנסות מגיהוץ',        type: 'REVENUE' },
+    { code: '4400', name: 'הכנסות ממשלוחים',      type: 'REVENUE' },
+    { code: '4500', name: 'הכנסות אחרות',         type: 'REVENUE' },
 
     // Expenses (הוצאות)
-    { code: '5100', name: 'שכר עבודה',            type: 'EXPENSE',   subType: 'OPERATING_EXPENSE' },
-    { code: '5200', name: 'חומרי ניקוי',           type: 'EXPENSE',   subType: 'OPERATING_EXPENSE' },
-    { code: '5300', name: 'שכירות',               type: 'EXPENSE',   subType: 'OPERATING_EXPENSE' },
-    { code: '5400', name: 'חשמל ומים',            type: 'EXPENSE',   subType: 'OPERATING_EXPENSE' },
-    { code: '5500', name: 'תחזוקת ציוד',           type: 'EXPENSE',   subType: 'OPERATING_EXPENSE' },
-    { code: '5600', name: 'דלק ומשלוחים',         type: 'EXPENSE',   subType: 'OPERATING_EXPENSE' },
-    { code: '5700', name: 'פחת ציוד',             type: 'EXPENSE',   subType: 'OPERATING_EXPENSE' },
-    { code: '5800', name: 'הוצאות הנהלה וכלליות', type: 'EXPENSE',   subType: 'OPERATING_EXPENSE' },
-    { code: '5900', name: 'הוצאות שיווק ופרסום',  type: 'EXPENSE',   subType: 'OPERATING_EXPENSE' },
+    { code: '5100', name: 'שכר עבודה',            type: 'EXPENSE' },
+    { code: '5200', name: 'חומרי ניקוי',           type: 'EXPENSE' },
+    { code: '5300', name: 'שכירות',               type: 'EXPENSE' },
+    { code: '5400', name: 'חשמל ומים',            type: 'EXPENSE' },
+    { code: '5500', name: 'תחזוקת ציוד',           type: 'EXPENSE' },
+    { code: '5600', name: 'דלק ומשלוחים',         type: 'EXPENSE' },
+    { code: '5700', name: 'פחת ציוד',             type: 'EXPENSE' },
+    { code: '5800', name: 'הוצאות הנהלה וכלליות', type: 'EXPENSE' },
+    { code: '5900', name: 'הוצאות שיווק ופרסום',  type: 'EXPENSE' },
   ];
 
   for (const acc of accounts) {
@@ -126,7 +125,7 @@ async function main() {
         code: acc.code,
         name: acc.name,
         type: acc.type as any,
-        subType: acc.subType as any,
+        
         isActive: true,
       },
     });
