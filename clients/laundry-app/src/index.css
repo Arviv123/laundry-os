@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Heebo', Arial, sans-serif;
+  direction: rtl;
+}
+
+@layer base {
+  * { @apply border-gray-200; }
+}

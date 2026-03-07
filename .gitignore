@@ -3,3 +3,5 @@ dist/
 .env
 *.log
 .DS_Store
+clients/laundry-app/node_modules/
+clients/laundry-app/dist/
