@@ -269,4 +269,26 @@ router.post('/auto-assign', asyncHandler(async (req: AuthenticatedRequest, res: 
   sendSuccess(res, { assigned: created.length, assignments: created });
 }));
 
+// ─── GET /driver-diary — Driver's Assignments by Date Range ──────
+
+router.get('/driver-diary', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { driverId, startDate, endDate } = req.query;
+  if (!driverId) return sendError(res, 'driverId is required', 400);
+
+  const start = startDate ? new Date(startDate as string) : (() => { const d = new Date(); d.setDate(d.getDate() - d.getDay()); d.setHours(0,0,0,0); return d; })();
+  const end = endDate ? new Date(endDate as string) : (() => { const d = new Date(start); d.setDate(d.getDate() + 6); d.setHours(23,59,59,999); return d; })();
+
+  const assignments = await prisma.deliveryAssignment.findMany({
+    where: {
+      tenantId: req.user.tenantId,
+      driverId: driverId as string,
+      scheduledAt: { gte: start, lte: end },
+    },
+    include: { order: { include: { customer: true } } },
+    orderBy: { scheduledAt: 'asc' },
+  });
+
+  sendSuccess(res, { assignments, startDate: start, endDate: end });
+}));
+
 export default router;

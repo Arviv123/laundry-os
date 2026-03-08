@@ -7,6 +7,7 @@ import { AuthenticatedRequest } from '../../shared/types';
 import { sendSuccess, sendError } from '../../shared/utils/response';
 import { asyncHandler } from '../../shared/utils/asyncHandler';
 import { prisma } from '../../config/database';
+import { Prisma } from '@prisma/client';
 import {
   getCustomerCreditUsage,
   checkCreditLimit,
@@ -28,6 +29,7 @@ const CustomerSchema = z.object({
   status:     z.enum(['LEAD', 'ACTIVE', 'INACTIVE', 'BLOCKED']).default('LEAD'),
   assignedTo: z.string().optional(),
   metadata:   z.record(z.any()).default({}),  // JSONB - completely flexible
+  defaultDeliveryAddress: z.record(z.any()).nullable().optional(),
 });
 
 // GET /crm/customers
@@ -97,8 +99,13 @@ router.post('/customers', async (req: AuthenticatedRequest, res: Response) => {
   const parsed = CustomerSchema.safeParse(req.body);
   if (!parsed.success) { sendError(res, parsed.error.message); return; }
 
+  const createData: any = { ...parsed.data, tenantId: req.user.tenantId };
+  if (createData.defaultDeliveryAddress === null) {
+    createData.defaultDeliveryAddress = Prisma.JsonNull;
+  }
+
   const customer = await prisma.customer.create({
-    data: { ...parsed.data, tenantId: req.user.tenantId },
+    data: createData,
   });
   sendSuccess(res, customer, 201);
 });
@@ -120,9 +127,14 @@ router.patch('/customers/:id', async (req: AuthenticatedRequest, res: Response) 
       ? { ...(existing.metadata as object), ...parsed.data.metadata }
       : existing.metadata;
 
+  const updateData: any = { ...parsed.data, metadata: mergedMetadata ?? undefined };
+  if (updateData.defaultDeliveryAddress === null) {
+    updateData.defaultDeliveryAddress = Prisma.JsonNull;
+  }
+
   const updated = await prisma.customer.update({
     where: { id: req.params.id },
-    data:  { ...parsed.data, metadata: mergedMetadata ?? undefined },
+    data:  updateData,
   });
   sendSuccess(res, updated);
 });

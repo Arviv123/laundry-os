@@ -94,6 +94,7 @@ import billingRouter from './modules/billing/billing.routes';
 // Routes — Tasks & Delivery Management
 import tasksRouter from './modules/tasks/tasks.routes';
 import deliveryMgmtRouter from './modules/delivery-mgmt/delivery-mgmt.routes';
+import recurringOrdersRouter from './modules/delivery-mgmt/recurring-orders.routes';
 
 // Swagger
 import { swaggerSpec } from './config/swagger';
@@ -206,6 +207,7 @@ app.use('/api/dashboard',        dashboardRouter);
 app.use('/api/billing',          billingRouter);
 app.use('/api/tasks',            tasksRouter);
 app.use('/api/delivery-mgmt',    deliveryMgmtRouter);
+app.use('/api/delivery-mgmt',    recurringOrdersRouter);
 
 // ─── Sentry Error Handler ─────────────────────────────────────
 if (process.env.SENTRY_DSN) {

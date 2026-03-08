@@ -32,6 +32,7 @@ import PriceListsPage from './pages/PriceListsPage';
 import TasksPage from './pages/TasksPage';
 import DeliveryMgmtPage from './pages/DeliveryMgmtPage';
 import PhoneDeliveryPage from './pages/PhoneDeliveryPage';
+import DriverDiaryPage from './pages/DriverDiaryPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, isLoading } = useAuth();
@@ -76,6 +77,7 @@ export default function App() {
         <Route path="tasks" element={<TasksPage />} />
         <Route path="delivery-mgmt" element={<DeliveryMgmtPage />} />
         <Route path="phone-delivery" element={<PhoneDeliveryPage />} />
+        <Route path="driver-diary" element={<DriverDiaryPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

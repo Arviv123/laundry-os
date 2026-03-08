@@ -137,12 +137,19 @@ export async function createOrder(input: CreateOrderInput) {
     });
 
     // Update customer stats
+    const customerUpdate: any = {
+      totalOrders: { increment: 1 },
+      totalSpent:  { increment: total },
+    };
+
+    // Save delivery address as customer's default if HOME_DELIVERY
+    if (input.deliveryType === 'HOME_DELIVERY' && input.deliveryAddress) {
+      customerUpdate.defaultDeliveryAddress = input.deliveryAddress;
+    }
+
     await tx.customer.update({
       where: { id: input.customerId },
-      data: {
-        totalOrders: { increment: 1 },
-        totalSpent:  { increment: total },
-      },
+      data: customerUpdate,
     });
 
     return created;

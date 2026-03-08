@@ -3,16 +3,18 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   Phone, User, MapPin, Calendar, Clock, Truck, Package, Check,
   ArrowRight, ArrowLeft, Plus, Search, AlertCircle, CheckCircle2,
-  Loader2, X,
+  Loader2, X, RefreshCw,
 } from 'lucide-react';
 import api from '../lib/api';
 import { useToast } from '../contexts/ToastContext';
+import AddressAutocomplete, { type AddressValue } from '../components/AddressAutocomplete';
 
 /* ───────── types ───────── */
 interface Customer {
   id: string;
   name: string;
   phone: string;
+  defaultDeliveryAddress?: { street?: string; city?: string; floor?: string; apartment?: string };
   email?: string;
   address?: { street?: string; city?: string };
   metadata?: Record<string, unknown>;
@@ -21,8 +23,7 @@ interface Customer {
 interface Driver {
   id: string;
   name: string;
-  phone: string;
-  status: string;
+  email?: string;
 }
 
 interface StepDef {
@@ -99,11 +100,15 @@ export default function PhoneDeliveryPage() {
   const [pickup, setPickup] = useState({
     street: '',
     city: '',
+    floor: '',
+    apartment: '',
     date: todayStr(),
     timeWindow: 'morning',
     bags: 1,
     instructions: '',
     priority: 'NORMAL',
+    isRecurring: false,
+    recurringDays: [] as number[],
   });
 
   /* === Step 3: Delivery === */
@@ -119,13 +124,17 @@ export default function PhoneDeliveryPage() {
   const [driverId, setDriverId] = useState('');
   const [orderResult, setOrderResult] = useState<{ orderId: string; orderNumber: string } | null>(null);
 
-  /* ── sync pickup address from customer ── */
+  /* ── sync pickup address from customer (prefer defaultDeliveryAddress) ── */
   useEffect(() => {
-    if (selectedCustomer?.address) {
+    if (!selectedCustomer) return;
+    const addr = selectedCustomer.defaultDeliveryAddress || (selectedCustomer as any).address;
+    if (addr) {
       setPickup(p => ({
         ...p,
-        street: selectedCustomer.address?.street || '',
-        city: selectedCustomer.address?.city || '',
+        street: addr.street || '',
+        city: addr.city || '',
+        floor: addr.floor || '',
+        apartment: addr.apartment || '',
       }));
     }
   }, [selectedCustomer]);
@@ -137,7 +146,7 @@ export default function PhoneDeliveryPage() {
     queryFn: async () => {
       if (!debouncedSearch || debouncedSearch.length < 2) return [];
       const res = await api.get('/crm/customers', { params: { search: debouncedSearch, limit: 10 } });
-      return (res.data.customers ?? res.data) as Customer[];
+      return (res.data.data ?? res.data.customers ?? res.data) as Customer[];
     },
     enabled: debouncedSearch.length >= 2 && !selectedCustomer,
   });
@@ -169,7 +178,13 @@ export default function PhoneDeliveryPage() {
     queryKey: ['delivery-drivers'],
     queryFn: async () => {
       const res = await api.get('/delivery-mgmt/drivers');
-      return (res.data.drivers ?? res.data) as Driver[];
+      const raw = res.data.data ?? res.data.drivers ?? res.data;
+      const arr = Array.isArray(raw) ? raw : [];
+      return arr.map((d: any) => ({
+        id: d.id,
+        name: [d.firstName, d.lastName].filter(Boolean).join(' ') || d.email || d.id,
+        email: d.email,
+      })) as Driver[];
     },
   });
 
@@ -178,16 +193,28 @@ export default function PhoneDeliveryPage() {
     mutationFn: async () => {
       if (!selectedCustomer) throw new Error('No customer');
 
-      // 1) create order
+      // 1) fetch first available service to use as default
+      const svcRes = await api.get('/services');
+      const services = svcRes.data.data ?? svcRes.data;
+      const defaultService = Array.isArray(services) && services.length > 0 ? services[0] : null;
+      if (!defaultService) throw new Error('אין שירותים מוגדרים במערכת');
+
+      // 2) create order
       const orderBody: Record<string, unknown> = {
         customerId: selectedCustomer.id,
         deliveryType: 'HOME_DELIVERY',
         priority: pickup.priority,
+        source: 'PICKUP',
         notes: pickup.instructions || undefined,
-        items: [{ name: 'כביסה כללית', quantity: pickup.bags, price: 0 }],
+        deliveryAddress: { street: pickup.street, city: pickup.city },
+        items: [{
+          serviceId: defaultService.id,
+          description: `איסוף כביסה — ${pickup.bags} שקיות`,
+          quantity: pickup.bags || 1,
+        }],
       };
       const orderRes = await api.post('/orders', orderBody);
-      const order = orderRes.data.order ?? orderRes.data;
+      const order = orderRes.data.data ?? orderRes.data.order ?? orderRes.data;
 
       // 2) build delivery address
       let deliveryAddress = { street: pickup.street, city: pickup.city };
@@ -200,29 +227,55 @@ export default function PhoneDeliveryPage() {
       const startHour = tw ? tw.range.split('-')[0] : '08:00';
       const scheduledPickup = `${pickup.date}T${startHour}:00`;
 
-      // 4) create pickup assignment
-      const assignBody: Record<string, unknown> = {
-        orderId: order.id,
-        type: 'PICKUP',
-        scheduledTime: scheduledPickup,
-        address: { street: pickup.street, city: pickup.city },
-        notes: pickup.instructions || undefined,
-      };
-      if (driverId) assignBody.driverId = driverId;
-      await api.post('/delivery-mgmt/assignments', assignBody);
-
-      // 5) create delivery assignment if not store pickup
-      if (delivery.type !== 'store') {
-        const scheduledDelivery = `${delivery.date}T${startHour}:00`;
-        const deliverBody: Record<string, unknown> = {
+      // 4) create pickup assignment (only if driver selected; otherwise use auto-assign)
+      if (driverId) {
+        await api.post('/delivery-mgmt/assignments', {
           orderId: order.id,
-          type: 'DELIVERY',
-          scheduledTime: scheduledDelivery,
-          address: deliveryAddress,
-          notes: delivery.driverNotes || undefined,
-        };
-        if (driverId) deliverBody.driverId = driverId;
-        await api.post('/delivery-mgmt/assignments', deliverBody);
+          driverId,
+          type: 'PICKUP',
+          scheduledAt: scheduledPickup,
+          notes: pickup.instructions || undefined,
+        });
+
+        // 5) create delivery assignment if not store pickup
+        if (delivery.type !== 'store') {
+          const scheduledDelivery = `${delivery.date}T${startHour}:00`;
+          await api.post('/delivery-mgmt/assignments', {
+            orderId: order.id,
+            driverId,
+            type: 'DELIVERY',
+            scheduledAt: scheduledDelivery,
+            notes: delivery.driverNotes || undefined,
+          });
+        }
+      } else {
+        // Auto-assign will pick an available driver
+        await api.post('/delivery-mgmt/auto-assign').catch(() => {});
+      }
+
+      // Save address as customer's default
+      await api.patch(`/crm/customers/${selectedCustomer.id}`, {
+        defaultDeliveryAddress: { street: pickup.street, city: pickup.city, floor: pickup.floor, apartment: pickup.apartment },
+      }).catch(() => {});
+
+      // Create recurring order if enabled
+      if (pickup.isRecurring && pickup.recurringDays.length > 0) {
+        let deliveryAddress = { street: pickup.street, city: pickup.city };
+        if (delivery.type === 'different') {
+          deliveryAddress = { street: delivery.street, city: delivery.city };
+        }
+        await api.post('/delivery-mgmt/recurring-orders', {
+          customerId: selectedCustomer.id,
+          daysOfWeek: pickup.recurringDays,
+          timeWindow: pickup.timeWindow,
+          pickupAddress: { street: pickup.street, city: pickup.city, floor: pickup.floor, apartment: pickup.apartment },
+          deliveryAddress: delivery.type !== 'same' ? deliveryAddress : undefined,
+          deliveryType: delivery.type,
+          bags: pickup.bags,
+          priority: pickup.priority,
+          instructions: pickup.instructions || undefined,
+          driverId: driverId || undefined,
+        }).catch(() => {});
       }
 
       return { orderId: order.id, orderNumber: order.orderNumber ?? order.id.slice(-8).toUpperCase() };
@@ -267,7 +320,7 @@ export default function PhoneDeliveryPage() {
     setSearchQuery('');
     setIsCreatingNew(false);
     setNewCustomer({ name: '', phone: '', email: '', street: '', city: '' });
-    setPickup({ street: '', city: '', date: todayStr(), timeWindow: 'morning', bags: 1, instructions: '', priority: 'NORMAL' });
+    setPickup({ street: '', city: '', floor: '', apartment: '', date: todayStr(), timeWindow: 'morning', bags: 1, instructions: '', priority: 'NORMAL', isRecurring: false, recurringDays: [] });
     setDelivery({ type: 'same', street: '', city: '', date: tomorrowStr(), driverNotes: '' });
     setDriverId('');
     setOrderResult(null);
@@ -663,39 +716,21 @@ function StepPickup({
   pickup,
   setPickup,
 }: {
-  pickup: { street: string; city: string; date: string; timeWindow: string; bags: number; instructions: string; priority: string };
+  pickup: { street: string; city: string; floor: string; apartment: string; date: string; timeWindow: string; bags: number; instructions: string; priority: string; isRecurring: boolean; recurringDays: number[] };
   setPickup: React.Dispatch<React.SetStateAction<typeof pickup>>;
 }) {
+  const DAYS_HE = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
+
   return (
     <div className="space-y-6">
-      {/* Address */}
+      {/* Address — Nominatim Autocomplete */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-          <MapPin className="w-5 h-5 text-blue-600" />
-          כתובת איסוף
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">רחוב *</label>
-            <input
-              type="text"
-              value={pickup.street}
-              onChange={e => setPickup(p => ({ ...p, street: e.target.value }))}
-              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              placeholder="הרצל 10"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">עיר *</label>
-            <input
-              type="text"
-              value={pickup.city}
-              onChange={e => setPickup(p => ({ ...p, city: e.target.value }))}
-              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-              placeholder="תל אביב"
-            />
-          </div>
-        </div>
+        <AddressAutocomplete
+          value={{ street: pickup.street, city: pickup.city, floor: pickup.floor, apartment: pickup.apartment }}
+          onChange={(addr: AddressValue) => setPickup(p => ({ ...p, street: addr.street, city: addr.city, floor: addr.floor || '', apartment: addr.apartment || '' }))}
+          label="כתובת איסוף"
+          required
+        />
       </div>
 
       {/* Date & Time */}
@@ -794,6 +829,49 @@ function StepPickup({
           </div>
         </div>
       </div>
+
+      {/* Recurring Schedule */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <RefreshCw className="w-5 h-5 text-purple-600" />
+          הזמנה חוזרת
+        </h3>
+        <label className="flex items-center gap-3 cursor-pointer mb-4">
+          <input
+            type="checkbox"
+            checked={pickup.isRecurring}
+            onChange={e => setPickup(p => ({ ...p, isRecurring: e.target.checked }))}
+            className="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+          />
+          <span className="text-sm font-medium text-gray-700">קבע כהזמנה חוזרת (מלון, מסעדה, וכו׳)</span>
+        </label>
+        {pickup.isRecurring && (
+          <div>
+            <p className="text-sm text-gray-500 mb-3">בחר את הימים בשבוע לאיסוף קבוע:</p>
+            <div className="grid grid-cols-7 gap-2">
+              {DAYS_HE.map((day, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setPickup(p => ({
+                    ...p,
+                    recurringDays: p.recurringDays.includes(i)
+                      ? p.recurringDays.filter(d => d !== i)
+                      : [...p.recurringDays, i],
+                  }))}
+                  className={`py-3 rounded-xl border-2 font-medium text-sm transition-colors ${
+                    pickup.recurringDays.includes(i)
+                      ? 'border-purple-500 bg-purple-50 text-purple-700'
+                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                  }`}
+                >
+                  {day}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -836,32 +914,13 @@ function StepDelivery({
       {/* Different address */}
       {delivery.type === 'different' && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-            <MapPin className="w-5 h-5 text-blue-600" />
-            כתובת למשלוח
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">רחוב *</label>
-              <input
-                type="text"
-                value={delivery.street}
-                onChange={e => setDelivery(d => ({ ...d, street: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                placeholder="רחוב ומספר"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">עיר *</label>
-              <input
-                type="text"
-                value={delivery.city}
-                onChange={e => setDelivery(d => ({ ...d, city: e.target.value }))}
-                className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                placeholder="עיר"
-              />
-            </div>
-          </div>
+          <AddressAutocomplete
+            value={{ street: delivery.street, city: delivery.city }}
+            onChange={(addr: AddressValue) => setDelivery(d => ({ ...d, street: addr.street, city: addr.city }))}
+            label="כתובת למשלוח"
+            required
+            showExtras={false}
+          />
         </div>
       )}
 
@@ -908,12 +967,13 @@ function StepSummary({
   customer, pickup, delivery, drivers, driverId, setDriverId,
 }: {
   customer: Customer;
-  pickup: { street: string; city: string; date: string; timeWindow: string; bags: number; instructions: string; priority: string };
+  pickup: { street: string; city: string; floor: string; apartment: string; date: string; timeWindow: string; bags: number; instructions: string; priority: string; isRecurring: boolean; recurringDays: number[] };
   delivery: { type: string; street: string; city: string; date: string; driverNotes: string };
   drivers: Driver[];
   driverId: string;
   setDriverId: (v: string) => void;
 }) {
+  const DAYS_NAMES = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
   const tw = TIME_WINDOWS.find(t => t.value === pickup.timeWindow);
   const dt = DELIVERY_TYPES.find(t => t.value === delivery.type);
   const deliveryAddr = delivery.type === 'same'
@@ -1009,6 +1069,26 @@ function StepSummary({
         </div>
       </div>
 
+      {/* Recurring schedule */}
+      {pickup.isRecurring && pickup.recurringDays.length > 0 && (
+        <div className="bg-indigo-50 rounded-2xl border border-indigo-200 p-6">
+          <h3 className="text-lg font-bold text-indigo-900 mb-3 flex items-center gap-2">
+            <RefreshCw className="w-5 h-5 text-indigo-600" />
+            הזמנה חוזרת
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            {pickup.recurringDays.sort((a, b) => a - b).map(d => (
+              <span key={d} className="px-3 py-1.5 bg-indigo-100 text-indigo-700 rounded-lg text-sm font-medium">
+                יום {DAYS_NAMES[d]}
+              </span>
+            ))}
+          </div>
+          <p className="text-sm text-indigo-600 mt-2">
+            ייווצרו הזמנות אוטומטיות בימים אלו בכל שבוע
+          </p>
+        </div>
+      )}
+
       {/* Driver assignment */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
         <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
@@ -1021,9 +1101,9 @@ function StepSummary({
           className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
         >
           <option value="">שיוך אוטומטי (ללא בחירה)</option>
-          {drivers.map(d => (
+          {(Array.isArray(drivers) ? drivers : []).map(d => (
             <option key={d.id} value={d.id}>
-              {d.name} — {formatPhone(d.phone)} {d.status === 'AVAILABLE' ? '(זמין)' : `(${d.status})`}
+              {d.name}
             </option>
           ))}
         </select>
