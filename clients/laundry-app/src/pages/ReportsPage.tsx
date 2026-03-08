@@ -5,7 +5,7 @@ import { STATUS_LABELS, STATUS_COLORS } from '../lib/constants';
 import { SkeletonCard } from '../components/Skeleton';
 import {
   BarChart3, TrendingUp, Calendar, DollarSign, ShoppingBag,
-  Users, Shirt, ArrowUpRight, ArrowDownRight,
+  Users, Shirt, ArrowUpRight, ArrowDownRight, Download,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -130,13 +130,16 @@ export default function ReportsPage() {
         <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
           <BarChart3 className="w-7 h-7 text-blue-600" /> דוחות וניתוחים
         </h1>
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
-          {RANGE_OPTIONS.map(opt => (
-            <button key={opt.key} onClick={() => setRange(opt.key)}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                range === opt.key ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'
-              }`}>{opt.label}</button>
-          ))}
+        <div className="flex gap-2 items-center">
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+            {RANGE_OPTIONS.map(opt => (
+              <button key={opt.key} onClick={() => setRange(opt.key)}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  range === opt.key ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'
+                }`}>{opt.label}</button>
+            ))}
+          </div>
+          <ExportDropdown />
         </div>
       </div>
 
@@ -243,6 +246,53 @@ export default function ReportsPage() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ExportDropdown() {
+  const [open, setOpen] = useState(false);
+
+  const downloadFile = async (endpoint: string, filename: string) => {
+    try {
+      const response = await api.get(endpoint, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      // silent
+    }
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium">
+        <Download className="w-4 h-4" /> ייצוא
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border z-50 py-1">
+            <button onClick={() => downloadFile('/exports/orders', `orders-${new Date().toISOString().slice(0,10)}.xlsx`)}
+              className="w-full text-right px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2">
+              <ShoppingBag className="w-4 h-4 text-gray-400" /> הזמנות (Excel)
+            </button>
+            <button onClick={() => downloadFile('/exports/customers', `customers-${new Date().toISOString().slice(0,10)}.xlsx`)}
+              className="w-full text-right px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2">
+              <Users className="w-4 h-4 text-gray-400" /> לקוחות (Excel)
+            </button>
+            <button onClick={() => downloadFile('/exports/invoices', `invoices-${new Date().toISOString().slice(0,10)}.xlsx`)}
+              className="w-full text-right px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-gray-400" /> חשבוניות (Excel)
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

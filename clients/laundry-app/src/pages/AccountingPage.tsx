@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────
-type Tab = 'trial-balance' | 'pl' | 'balance-sheet' | 'vat' | 'cash-flow' | 'accounts';
+type Tab = 'trial-balance' | 'pl' | 'balance-sheet' | 'vat' | 'cash-flow' | 'aging' | 'accounts';
 
 const TABS: { key: Tab; label: string; icon: any }[] = [
   { key: 'trial-balance', label: 'מאזן בוחן', icon: Scale },
@@ -16,6 +16,7 @@ const TABS: { key: Tab; label: string; icon: any }[] = [
   { key: 'balance-sheet', label: 'מאזן', icon: Landmark },
   { key: 'vat', label: 'דוח מע״מ', icon: ReceiptText },
   { key: 'cash-flow', label: 'מזומנים', icon: Coins },
+  { key: 'aging', label: 'גיול חובות', icon: FileText },
   { key: 'accounts', label: 'חשבונות', icon: ClipboardList },
 ];
 
@@ -99,6 +100,18 @@ export default function AccountingPage() {
     queryKey: ['cash-flow', dateRange],
     queryFn: () => api.get('/accounting/reports/cash-flow', { params: dateRange }).then(r => r.data.data),
     enabled: activeTab === 'cash-flow',
+  });
+
+  const { data: agingSummary, isLoading: loadingAging } = useQuery({
+    queryKey: ['aging-summary'],
+    queryFn: () => api.get('/aging/summary').then(r => r.data.data),
+    enabled: activeTab === 'aging',
+  });
+
+  const { data: agingAR } = useQuery({
+    queryKey: ['aging-ar'],
+    queryFn: () => api.get('/aging/ar').then(r => r.data.data),
+    enabled: activeTab === 'aging',
   });
 
   const { data: ledgerData, isLoading: loadingLedger } = useQuery({
@@ -188,6 +201,7 @@ export default function AccountingPage() {
           {activeTab === 'balance-sheet' && <BalanceSheetTab data={balanceSheet} loading={loadingBS} />}
           {activeTab === 'vat' && <VatTab data={vat} loading={loadingVat} />}
           {activeTab === 'cash-flow' && <CashFlowTab data={cashFlow} loading={loadingCF} />}
+          {activeTab === 'aging' && <AgingTab summary={agingSummary} ar={agingAR} loading={loadingAging} />}
           {activeTab === 'accounts' && (
             <AccountsTab
               accounts={accounts ?? []}
@@ -585,6 +599,101 @@ function LedgerView({ data, loading, onClose }: { data: any; loading: boolean; o
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Aging Tab ───────────────────────────────────────────────────
+function AgingTab({ summary, ar, loading }: { summary: any; ar: any; loading: boolean }) {
+  if (loading) return <Loading />;
+
+  const arRows = ar?.rows ?? ar ?? [];
+  const arTotal = summary?.ar ?? {};
+  const apTotal = summary?.ap ?? {};
+
+  const exportAging = async () => {
+    try {
+      const response = await api.get('/aging/ar', { params: { format: 'xlsx' }, responseType: 'blob' as any });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `aging-ar-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch { /* silent */ }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Summary KPIs */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-white rounded-xl shadow-sm border p-5">
+          <h3 className="font-semibold text-blue-700 mb-3">חייבים (AR)</h3>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div><span className="text-gray-500">0-30 יום:</span> <span className="font-medium">{fmt(arTotal.current ?? 0)} ₪</span></div>
+            <div><span className="text-gray-500">31-60 יום:</span> <span className="font-medium">{fmt(arTotal.days31to60 ?? 0)} ₪</span></div>
+            <div><span className="text-gray-500">61-90 יום:</span> <span className="font-medium text-yellow-600">{fmt(arTotal.days61to90 ?? 0)} ₪</span></div>
+            <div><span className="text-gray-500">90+ יום:</span> <span className="font-medium text-red-600">{fmt(arTotal.over90 ?? 0)} ₪</span></div>
+          </div>
+          <div className="mt-3 pt-3 border-t font-semibold flex justify-between">
+            <span>סה״כ חייבים</span>
+            <span className="text-blue-600">{fmt(arTotal.total ?? 0)} ₪</span>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border p-5">
+          <h3 className="font-semibold text-orange-700 mb-3">זכאים (AP)</h3>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div><span className="text-gray-500">0-30 יום:</span> <span className="font-medium">{fmt(apTotal.current ?? 0)} ₪</span></div>
+            <div><span className="text-gray-500">31-60 יום:</span> <span className="font-medium">{fmt(apTotal.days31to60 ?? 0)} ₪</span></div>
+            <div><span className="text-gray-500">61-90 יום:</span> <span className="font-medium text-yellow-600">{fmt(apTotal.days61to90 ?? 0)} ₪</span></div>
+            <div><span className="text-gray-500">90+ יום:</span> <span className="font-medium text-red-600">{fmt(apTotal.over90 ?? 0)} ₪</span></div>
+          </div>
+          <div className="mt-3 pt-3 border-t font-semibold flex justify-between">
+            <span>סה״כ זכאים</span>
+            <span className="text-orange-600">{fmt(apTotal.total ?? 0)} ₪</span>
+          </div>
+        </div>
+      </div>
+
+      {/* AR Detail Table */}
+      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <div className="px-5 py-4 border-b bg-gray-50 flex items-center justify-between">
+          <h2 className="font-semibold text-gray-700">פירוט גיול חייבים</h2>
+          <button onClick={exportAging}
+            className="flex items-center gap-1 text-sm text-green-600 hover:text-green-800 font-medium">
+            ייצוא Excel
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50">
+                <th className="text-right px-4 py-2">לקוח</th>
+                <th className="text-right px-4 py-2">0-30 יום</th>
+                <th className="text-right px-4 py-2">31-60 יום</th>
+                <th className="text-right px-4 py-2">61-90 יום</th>
+                <th className="text-right px-4 py-2">90+ יום</th>
+                <th className="text-right px-4 py-2">סה״כ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {arRows.map((row: any, i: number) => (
+                <tr key={i} className="border-t hover:bg-gray-50">
+                  <td className="px-4 py-2 font-medium">{row.customerName ?? row.name ?? '-'}</td>
+                  <td className="px-4 py-2">{fmt(row.current ?? row.days0to30 ?? 0)} ₪</td>
+                  <td className="px-4 py-2">{fmt(row.days31to60 ?? 0)} ₪</td>
+                  <td className="px-4 py-2 text-yellow-600">{fmt(row.days61to90 ?? 0)} ₪</td>
+                  <td className="px-4 py-2 text-red-600">{fmt(row.over90 ?? 0)} ₪</td>
+                  <td className="px-4 py-2 font-bold">{fmt(row.total ?? 0)} ₪</td>
+                </tr>
+              ))}
+              {arRows.length === 0 && (
+                <tr><td colSpan={6} className="text-center py-8 text-gray-400">אין נתוני גיול</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

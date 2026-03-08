@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import api from '../lib/api';
 import CommandPalette from './CommandPalette';
 import {
   LayoutDashboard, ShoppingBag, Shirt, Cog, Users, Truck, Wallet,
@@ -9,6 +11,7 @@ import {
   BookOpen, LogOut, Menu, X, ChevronDown, ChevronLeft, Search, Command,
   Upload, Award, Percent, TrendingUp, QrCode, Gift, Columns3, Banknote,
   CreditCard, Receipt as ReceiptIcon, Zap, Tag, ClipboardList, Phone, Calendar,
+  Bell, RefreshCw, Radio, Landmark, DollarSign,
 } from 'lucide-react';
 
 const NAV_SECTIONS = [
@@ -30,6 +33,7 @@ const NAV_SECTIONS = [
       { path: '/delivery', label: 'הזמנות משלוח', icon: Truck },
       { path: '/delivery-mgmt', label: 'ניהול משלוחים', icon: Truck },
       { path: '/phone-delivery', label: 'הזמנת משלוח טלפוני', icon: Phone },
+      { path: '/recurring-orders', label: 'הזמנות חוזרות', icon: RefreshCw },
       { path: '/tasks', label: 'משימות', icon: ClipboardList },
       { path: '/driver-diary', label: 'יומן נהגים', icon: Calendar },
       { path: '/customers', label: 'לקוחות', icon: Users },
@@ -37,6 +41,7 @@ const NAV_SECTIONS = [
       { path: '/cash-drawer', label: 'קופה', icon: Banknote },
       { path: '/payment-terminals', label: 'מסופי אשראי', icon: CreditCard },
       { path: '/price-lists', label: 'מחירונים', icon: Tag },
+      { path: '/rfid', label: 'RFID', icon: Radio },
     ],
   },
   {
@@ -53,6 +58,8 @@ const NAV_SECTIONS = [
     items: [
       { path: '/accounting', label: 'חשבונאות', icon: BookOpen },
       { path: '/invoices', label: 'חשבוניות', icon: BarChart3 },
+      { path: '/bank-recon', label: 'התאמות בנק', icon: Landmark },
+      { path: '/cash-flow-forecast', label: 'תחזית תזרים', icon: DollarSign },
       { path: '/inventory', label: 'מלאי', icon: ScanLine },
       { path: '/reports', label: 'דוחות', icon: TrendingUp },
       { path: '/expenses', label: 'הוצאות', icon: ReceiptIcon },
@@ -177,8 +184,103 @@ export default function Layout() {
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto">
+        {/* Top Bar with Notification Bell */}
+        <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-sm border-b border-gray-100 px-6 py-2 flex items-center justify-end gap-2">
+          <NotificationBell />
+        </div>
         <Outlet />
       </main>
+    </div>
+  );
+}
+
+function NotificationBell() {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const { data: count } = useQuery({
+    queryKey: ['notif-count'],
+    queryFn: () => api.get('/notifications/unread-count').then(r => r.data.data?.count ?? r.data.data ?? 0),
+    refetchInterval: 30_000,
+  });
+
+  const { data: notifs } = useQuery({
+    queryKey: ['notif-list'],
+    queryFn: () => api.get('/notifications', { params: { limit: 10 } }).then(r => r.data.data),
+    enabled: open,
+  });
+
+  const readAllMutation = useMutation({
+    mutationFn: () => api.put('/notifications/read-all'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notif-count'] });
+      queryClient.invalidateQueries({ queryKey: ['notif-list'] });
+    },
+  });
+
+  const readOneMutation = useMutation({
+    mutationFn: (id: string) => api.put(`/notifications/${id}/read`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notif-count'] });
+      queryClient.invalidateQueries({ queryKey: ['notif-list'] });
+    },
+  });
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const notifList = Array.isArray(notifs?.notifications ?? notifs) ? (notifs?.notifications ?? notifs ?? []) : [];
+  const unread = typeof count === 'number' ? count : 0;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button onClick={() => setOpen(!open)} className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
+        <Bell className="w-5 h-5 text-gray-500" />
+        {unread > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-pulse">
+            {unread > 99 ? '99+' : unread}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full mt-2 w-80 bg-white rounded-xl shadow-lg border z-50 overflow-hidden">
+          <div className="px-4 py-3 border-b bg-gray-50 flex items-center justify-between">
+            <h4 className="font-semibold text-sm text-gray-800">התראות</h4>
+            {unread > 0 && (
+              <button onClick={() => readAllMutation.mutate()}
+                className="text-xs text-blue-600 hover:text-blue-800">סמן הכל כנקרא</button>
+            )}
+          </div>
+          <div className="max-h-80 overflow-y-auto">
+            {notifList.length === 0 ? (
+              <div className="py-8 text-center text-gray-400 text-sm">אין התראות</div>
+            ) : (
+              notifList.map((n: any) => (
+                <div key={n.id}
+                  onClick={() => { if (!n.isRead) readOneMutation.mutate(n.id); }}
+                  className={`px-4 py-3 border-b hover:bg-gray-50 cursor-pointer transition-colors ${!n.isRead ? 'bg-blue-50/40' : ''}`}>
+                  <div className="flex items-start gap-2">
+                    {!n.isRead && <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 flex-shrink-0" />}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-800 truncate">{n.title ?? n.message}</p>
+                      {n.body && <p className="text-xs text-gray-500 mt-0.5 truncate">{n.body}</p>}
+                      <p className="text-[10px] text-gray-400 mt-1">{new Date(n.createdAt).toLocaleString('he-IL')}</p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

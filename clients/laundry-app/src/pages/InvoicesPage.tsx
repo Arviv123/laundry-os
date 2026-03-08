@@ -6,7 +6,7 @@ import api from '../lib/api';
 import {
   FileText, Search, Plus, X, Send, CreditCard, Ban,
   Download, Trash2, AlertTriangle, DollarSign, Clock,
-  ChevronDown, Receipt,
+  ChevronDown, Receipt, Link2,
 } from 'lucide-react';
 
 // ─── Constants ────────────────────────────────────────
@@ -50,6 +50,7 @@ export default function InvoicesPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [showPayment, setShowPayment] = useState(false);
+  const [showAllocation, setShowAllocation] = useState(false);
 
   // ─── Queries ──────────────────────────────────────
   const { data: invoicesData, isLoading } = useQuery({
@@ -155,10 +156,16 @@ export default function InvoicesPage() {
         <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
           <Receipt className="w-7 h-7 text-blue-600" /> חשבוניות
         </h1>
-        <button onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">
-          <Plus className="w-4 h-4" /> חשבונית חדשה
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowAllocation(true)}
+            className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 text-sm font-medium">
+            <Link2 className="w-4 h-4" /> שיוך תשלומים
+          </button>
+          <button onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">
+            <Plus className="w-4 h-4" /> חשבונית חדשה
+          </button>
+        </div>
       </div>
 
       {/* Summary Stats */}
@@ -471,6 +478,16 @@ export default function InvoicesPage() {
           onClose={() => setShowPayment(false)}
           onSubmit={payload => payMutation.mutate({ id: invoiceDetail.id, payload })}
           isPending={payMutation.isPending}
+        />
+      )}
+      {showAllocation && (
+        <PaymentAllocationModal
+          onClose={() => setShowAllocation(false)}
+          onAllocated={() => {
+            queryClient.invalidateQueries({ queryKey: ['invoices'] });
+            setShowAllocation(false);
+            addToast('תשלום שויך בהצלחה');
+          }}
         />
       )}
     </div>
@@ -845,6 +862,146 @@ function PaymentModal({
             disabled={!amount || Number(amount) <= 0 || isPending}
             className="flex-1 py-2.5 bg-green-600 text-white rounded-xl font-medium text-sm disabled:opacity-40">
             {isPending ? 'שומר...' : 'רשום תשלום'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────
+// Payment Allocation Modal
+// ─────────────────────────────────────────────────────
+function PaymentAllocationModal({ onClose, onAllocated }: {
+  onClose: () => void;
+  onAllocated: () => void;
+}) {
+  const { addToast } = useToast();
+  const [selectedPaymentId, setSelectedPaymentId] = useState('');
+  const [allocations, setAllocations] = useState<{ invoiceId: string; amount: string }[]>([]);
+
+  const { data: unallocated } = useQuery({
+    queryKey: ['unallocated-payments'],
+    queryFn: () => api.get('/payment-allocation/unallocated').then(r => r.data.data),
+  });
+
+  const selectedPayment = (unallocated ?? []).find((p: any) => p.id === selectedPaymentId);
+  const remaining = selectedPayment
+    ? Number(selectedPayment.unallocatedAmount ?? selectedPayment.amount ?? 0) - allocations.reduce((s, a) => s + (parseFloat(a.amount) || 0), 0)
+    : 0;
+
+  // Invoices that can receive payment
+  const { data: unpaidInvoices } = useQuery({
+    queryKey: ['unpaid-invoices-for-alloc'],
+    queryFn: () => api.get('/invoices', { params: { status: 'SENT', limit: 200 } }).then(r => {
+      const d = r.data.data;
+      return Array.isArray(d) ? d : d?.invoices ?? [];
+    }),
+    enabled: !!selectedPaymentId,
+  });
+
+  const allocMutation = useMutation({
+    mutationFn: (data: any) => api.post('/payment-allocation', data),
+    onSuccess: () => onAllocated(),
+    onError: (err: any) => addToast(err.response?.data?.error ?? 'שגיאה בשיוך', 'error'),
+  });
+
+  const addAllocation = () => setAllocations(prev => [...prev, { invoiceId: '', amount: '' }]);
+  const removeAllocation = (idx: number) => setAllocations(prev => prev.filter((_, i) => i !== idx));
+  const updateAllocation = (idx: number, field: 'invoiceId' | 'amount', value: string) => {
+    setAllocations(prev => prev.map((a, i) => i === idx ? { ...a, [field]: value } : a));
+  };
+
+  const handleSubmit = () => {
+    if (!selectedPaymentId) { addToast('נא לבחור תשלום', 'error'); return; }
+    const validAllocs = allocations.filter(a => a.invoiceId && parseFloat(a.amount) > 0);
+    if (validAllocs.length === 0) { addToast('נא להוסיף לפחות שיוך אחד', 'error'); return; }
+    allocMutation.mutate({
+      paymentId: selectedPaymentId,
+      allocations: validAllocs.map(a => ({ invoiceId: a.invoiceId, amount: parseFloat(a.amount) })),
+    });
+  };
+
+  const paymentList = Array.isArray(unallocated) ? unallocated : [];
+  const invoiceList = Array.isArray(unpaidInvoices) ? unpaidInvoices : [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl mx-4 max-h-[90vh] overflow-y-auto animate-slideDown" onClick={e => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b bg-gray-50 flex items-center justify-between sticky top-0 z-10">
+          <h3 className="font-bold text-gray-800">שיוך תשלומים לחשבוניות</h3>
+          <button onClick={onClose} className="p-1 hover:bg-gray-200 rounded"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          {/* Select Payment */}
+          <div>
+            <label className="text-sm text-gray-500 mb-1 block">בחר תשלום לא משויך</label>
+            <select value={selectedPaymentId} onChange={e => { setSelectedPaymentId(e.target.value); setAllocations([]); }}
+              className="w-full px-3 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500">
+              <option value="">בחר תשלום...</option>
+              {paymentList.map((p: any) => (
+                <option key={p.id} value={p.id}>
+                  {p.reference || p.id.slice(0, 8)} — {Number(p.unallocatedAmount ?? p.amount ?? 0).toLocaleString()} ₪
+                  {p.customer?.name ? ` (${p.customer.name})` : ''}
+                </option>
+              ))}
+            </select>
+            {paymentList.length === 0 && (
+              <p className="text-xs text-gray-400 mt-1">אין תשלומים לא משויכים</p>
+            )}
+          </div>
+
+          {selectedPaymentId && (
+            <>
+              <div className="text-sm bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <span className="text-blue-700 font-medium">
+                  יתרה לשיוך: {remaining.toLocaleString()} ₪
+                </span>
+              </div>
+
+              {/* Allocations */}
+              {allocations.map((alloc, idx) => (
+                <div key={idx} className="grid grid-cols-12 gap-2 items-end bg-gray-50 rounded-lg p-3">
+                  <div className="col-span-7">
+                    {idx === 0 && <label className="block text-xs text-gray-500 mb-1">חשבונית</label>}
+                    <select value={alloc.invoiceId} onChange={e => updateAllocation(idx, 'invoiceId', e.target.value)}
+                      className="w-full border rounded-lg px-2 py-1.5 text-sm">
+                      <option value="">בחר חשבונית...</option>
+                      {invoiceList.map((inv: any) => (
+                        <option key={inv.id} value={inv.id}>
+                          {inv.invoiceNumber} — {Number(inv.total ?? 0).toLocaleString()} ₪ ({inv.customer?.name || ''})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="col-span-4">
+                    {idx === 0 && <label className="block text-xs text-gray-500 mb-1">סכום</label>}
+                    <input type="number" step="0.01" min="0" value={alloc.amount}
+                      onChange={e => updateAllocation(idx, 'amount', e.target.value)}
+                      className="w-full border rounded-lg px-2 py-1.5 text-sm" placeholder="0.00" />
+                  </div>
+                  <div className="col-span-1">
+                    <button onClick={() => removeAllocation(idx)}
+                      className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              <button onClick={addAllocation}
+                className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 font-medium">
+                <Plus className="w-4 h-4" /> הוסף שיוך
+              </button>
+            </>
+          )}
+        </div>
+        <div className="flex gap-3 px-6 py-4 border-t bg-gray-50">
+          <button onClick={onClose} className="flex-1 py-2.5 bg-gray-200 text-gray-700 rounded-xl font-medium text-sm">ביטול</button>
+          <button onClick={handleSubmit}
+            disabled={!selectedPaymentId || allocations.length === 0 || allocMutation.isPending}
+            className="flex-1 py-2.5 bg-purple-600 text-white rounded-xl font-medium text-sm disabled:opacity-40">
+            {allocMutation.isPending ? 'משייך...' : 'שייך תשלומים'}
           </button>
         </div>
       </div>

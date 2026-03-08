@@ -35,6 +35,10 @@ import PhoneDeliveryPage from './pages/PhoneDeliveryPage';
 import DriverDiaryPage from './pages/DriverDiaryPage';
 import QRLinksPage from './pages/QRLinksPage';
 import DriverRunPage from './pages/DriverRunPage';
+import RecurringOrdersPage from './pages/RecurringOrdersPage';
+import BankReconciliationPage from './pages/BankReconciliationPage';
+import CashFlowForecastPage from './pages/CashFlowForecastPage';
+import RFIDPage from './pages/RFIDPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, isLoading } = useAuth();
@@ -82,6 +86,10 @@ export default function App() {
         <Route path="driver-diary" element={<DriverDiaryPage />} />
         <Route path="qr-links" element={<QRLinksPage />} />
         <Route path="delivery/run/:runId" element={<DriverRunPage />} />
+        <Route path="recurring-orders" element={<RecurringOrdersPage />} />
+        <Route path="bank-recon" element={<BankReconciliationPage />} />
+        <Route path="cash-flow-forecast" element={<CashFlowForecastPage />} />
+        <Route path="rfid" element={<RFIDPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
