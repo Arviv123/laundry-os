@@ -7,6 +7,7 @@ import {
   LayoutDashboard, ShoppingBag, Shirt, Cog, Users, Truck, Wallet,
   BarChart3, WashingMachine, ScanLine, Tags, Building2, Settings,
   BookOpen, LogOut, Menu, X, ChevronDown, ChevronLeft, Search, Command,
+  Upload,
 } from 'lucide-react';
 
 const NAV_SECTIONS = [
@@ -40,6 +41,7 @@ const NAV_SECTIONS = [
     title: 'מערכת',
     items: [
       { path: '/branches', label: 'סניפים', icon: Building2 },
+      { path: '/import', label: 'ייבוא נתונים', icon: Upload },
       { path: '/settings', label: 'הגדרות', icon: Settings },
     ],
   },

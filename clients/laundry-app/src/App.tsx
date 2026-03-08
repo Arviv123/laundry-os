@@ -16,6 +16,7 @@ import InvoicesPage from './pages/InvoicesPage';
 import InventoryPage from './pages/InventoryPage';
 import BranchesPage from './pages/BranchesPage';
 import SettingsPage from './pages/SettingsPage';
+import ImportPage from './pages/ImportPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, isLoading } = useAuth();
@@ -43,6 +44,8 @@ export default function App() {
         <Route path="inventory" element={<InventoryPage />} />
         <Route path="branches" element={<BranchesPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="import" element={<ImportPage />} />
+        <Route path="customers/:id" element={<CustomersPage />} />
       </Route>
     </Routes>
   );
