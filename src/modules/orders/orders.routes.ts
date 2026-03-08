@@ -39,7 +39,7 @@ const CreateOrderSchema = z.object({
   items: z.array(z.object({
     serviceId: z.string().min(1),
     description: z.string().min(1),
-    category: z.enum(['SHIRT', 'PANTS', 'DRESS', 'SUIT', 'COAT', 'BEDDING', 'CURTAIN', 'TOWEL', 'OTHER']).optional(),
+    category: z.enum(['SHIRT', 'PANTS', 'DRESS', 'SUIT', 'COAT', 'BEDDING', 'CURTAIN', 'TOWEL', 'OTHER', 'WASH', 'DRY_CLEAN', 'IRON', 'FOLD', 'SPECIAL']).optional(),
     quantity: z.number().int().min(1).optional(),
     color: z.string().optional(),
     brand: z.string().optional(),

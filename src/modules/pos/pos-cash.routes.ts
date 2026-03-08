@@ -276,6 +276,17 @@ router.get('/drawer/counts', asyncHandler(async (req: AuthenticatedRequest, res:
 // CASHIER SHIFTS
 // ══════════════════════════════════════════════════════════════════
 
+// GET /api/pos/shifts — list all shifts for tenant
+router.get('/shifts', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const shifts = await prisma.cashierShift.findMany({
+    where: { tenantId: req.user!.tenantId },
+    orderBy: { startedAt: 'desc' },
+    take: 50,
+    include: { session: { select: { id: true, status: true } } },
+  });
+  sendSuccess(res, shifts);
+}));
+
 // POST /api/pos/shifts/start
 router.post('/shifts/start', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const schema = z.object({
