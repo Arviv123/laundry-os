@@ -5,6 +5,7 @@ import { useDebounce } from '../hooks/useDebounce';
 import { useToast } from '../contexts/ToastContext';
 import api from '../lib/api';
 import { CATEGORY_LABELS, GARMENT_CATEGORIES, GARMENT_SUB_TYPES, STAIN_TYPES, SPECIAL_INSTRUCTIONS } from '../lib/constants';
+import { autoPrintOrderTickets } from '../components/ItemTicket';
 import {
   Search, Plus, Minus, X, ShoppingBag, User, Zap,
   Truck, Store, UserPlus, Tag, Star, Clock, AlertTriangle, Droplets,
@@ -218,6 +219,8 @@ export default function NewOrderPage() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       const order = res.data.data;
       addToast(`הזמנה ${order.orderNumber} נוצרה!`);
+      // Auto-print item tickets
+      autoPrintOrderTickets(order);
       navigate(`/orders/${order.id}`);
     },
     onError: (err: any) => addToast(err.response?.data?.error ?? 'שגיאה ביצירת הזמנה', 'error'),
