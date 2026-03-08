@@ -7,7 +7,7 @@ import {
   LayoutDashboard, ShoppingBag, Shirt, Cog, Users, Truck, Wallet,
   BarChart3, WashingMachine, ScanLine, Tags, Building2, Settings,
   BookOpen, LogOut, Menu, X, ChevronDown, ChevronLeft, Search, Command,
-  Upload, Award, Percent, TrendingUp, QrCode,
+  Upload, Award, Percent, TrendingUp, QrCode, Gift,
 } from 'lucide-react';
 
 const NAV_SECTIONS = [
@@ -35,6 +35,7 @@ const NAV_SECTIONS = [
     items: [
       { path: '/loyalty', label: 'מועדון לקוחות', icon: Award },
       { path: '/promotions', label: 'מבצעים', icon: Percent },
+      { path: '/gift-cards', label: 'כרטיסי מתנה', icon: Gift },
     ],
   },
   {

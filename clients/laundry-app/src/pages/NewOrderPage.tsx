@@ -265,6 +265,35 @@ export default function NewOrderPage() {
     return () => document.removeEventListener('click', h);
   }, [showCustomerDropdown]);
 
+  // Load repeat order from sessionStorage
+  useEffect(() => {
+    const repeatData = sessionStorage.getItem('repeat-order');
+    if (repeatData) {
+      sessionStorage.removeItem('repeat-order');
+      try {
+        const data = JSON.parse(repeatData);
+        if (data.items?.length) {
+          const repeatCart: CartItem[] = data.items.map((item: any) => ({
+            id: nextCartId(),
+            serviceId: item.serviceId || '',
+            serviceName: item.description || 'פריט',
+            category: '',
+            garmentType: 'OTHER',
+            garmentSubType: 'OTHER',
+            garmentLabel: item.description || 'פריט',
+            customName: item.description || 'פריט',
+            quantity: item.quantity || 1,
+            unitPrice: item.unitPrice || 0,
+            stains: [],
+            instructions: [],
+            notes: '',
+          }));
+          setCart(repeatCart);
+        }
+      } catch { /* ignore */ }
+    }
+  }, []);
+
   useEffect(() => { customerInputRef.current?.focus(); }, []);
 
   // Keyboard: / focuses search

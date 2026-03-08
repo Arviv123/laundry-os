@@ -10,7 +10,7 @@ import api from '../lib/api';
 import {
   ArrowRight, CheckCircle, Clock, Shirt, CreditCard,
   MessageCircle, Send, Printer, FileText, DollarSign,
-  Phone, Banknote, Wallet, Building,
+  Phone, Banknote, Wallet, Building, RefreshCw,
 } from 'lucide-react';
 
 export default function OrderDetailPage() {
@@ -75,6 +75,22 @@ export default function OrderDetailPage() {
     itemNumber: idx + 1,
   }));
 
+  // Repeat order
+  const repeatOrder = () => {
+    const repeatData = {
+      customerId: order.customerId,
+      customerName: order.customer?.name,
+      items: (order.items || []).map((item: any) => ({
+        serviceId: item.serviceId,
+        description: item.description ?? item.service?.name ?? 'פריט',
+        quantity: item.quantity,
+        unitPrice: Number(item.unitPrice || item.lineTotal / (item.quantity || 1)),
+      })),
+    };
+    sessionStorage.setItem('repeat-order', JSON.stringify(repeatData));
+    navigate('/orders/new');
+  };
+
   // SMS / WhatsApp send
   const handleSendWhatsApp = () => {
     const phone = order.customer?.phone?.replace(/[-\s]/g, '');
@@ -135,6 +151,12 @@ export default function OrderDetailPage() {
 
         {/* Print Receipt */}
         <ThermalReceiptPrintButton order={order} />
+
+        {/* Repeat Order */}
+        <button onClick={repeatOrder}
+          className="flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 text-sm font-medium">
+          <RefreshCw className="w-4 h-4" /> הזמנה חוזרת
+        </button>
 
         {/* Send Invoice */}
         <button onClick={() => setShowSendModal(true)}
