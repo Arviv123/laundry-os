@@ -20,7 +20,7 @@ export default function AccountingPage() {
         ? new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
         : new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
       const endDate = now.toISOString().split('T')[0];
-      return api.get('/accounting/reports/profit-loss', { params: { startDate, endDate } }).then(r => r.data.data);
+      return api.get('/accounting/reports/pl', { params: { from: startDate, to: endDate } }).then(r => r.data.data);
     },
   });
 

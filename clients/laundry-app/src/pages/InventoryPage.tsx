@@ -12,15 +12,15 @@ export default function InventoryPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['inventory', search],
-    queryFn: () => api.get('/inventory', { params: { search: search || undefined, limit: 100 } }).then(r => r.data.data),
+    queryFn: () => api.get('/inventory/products', { params: { search: search || undefined, limit: 100 } }).then(r => r.data.data),
   });
 
   const items = Array.isArray(data) ? data : data?.items ?? [];
 
   const saveMutation = useMutation({
     mutationFn: (payload: any) => editingItem
-      ? api.patch(`/inventory/${editingItem.id}`, payload)
-      : api.post('/inventory', payload),
+      ? api.patch(`/inventory/products/${editingItem.id}`, payload)
+      : api.post('/inventory/products', payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
       setShowForm(false);

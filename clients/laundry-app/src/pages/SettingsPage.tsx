@@ -25,7 +25,7 @@ export default function SettingsPage() {
 
   const { data: tenant } = useQuery({
     queryKey: ['tenant-settings'],
-    queryFn: () => api.get('/tenants/current').then(r => r.data.data),
+    queryFn: () => api.get('/tenants/me').then(r => r.data.data),
   });
 
   const { data: users } = useQuery({
@@ -54,7 +54,7 @@ export default function SettingsPage() {
   });
 
   const updateTenantMutation = useMutation({
-    mutationFn: (data: any) => api.patch('/tenants/current', data),
+    mutationFn: (data: any) => api.patch('/tenants/settings', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenant-settings'] });
       addToast('פרטי עסק נשמרו');
