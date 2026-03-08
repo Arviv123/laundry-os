@@ -7,7 +7,7 @@ import {
   LayoutDashboard, ShoppingBag, Shirt, Cog, Users, Truck, Wallet,
   BarChart3, WashingMachine, ScanLine, Tags, Building2, Settings,
   BookOpen, LogOut, Menu, X, ChevronDown, ChevronLeft, Search, Command,
-  Upload, Award, Percent, TrendingUp, QrCode, Gift,
+  Upload, Award, Percent, TrendingUp, QrCode, Gift, Columns3,
 } from 'lucide-react';
 
 const NAV_SECTIONS = [
@@ -18,6 +18,7 @@ const NAV_SECTIONS = [
       { path: '/orders', label: 'הזמנות', icon: ShoppingBag },
       { path: '/orders/new', label: 'הזמנה חדשה', icon: Shirt },
       { path: '/scan', label: 'סורק', icon: QrCode },
+      { path: '/workboard', label: 'לוח עבודה', icon: Columns3 },
     ],
   },
   {

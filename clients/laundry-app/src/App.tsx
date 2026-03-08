@@ -23,6 +23,7 @@ import ScanPage from './pages/ScanPage';
 import LoyaltyPage from './pages/LoyaltyPage';
 import PromotionsPage from './pages/PromotionsPage';
 import GiftCardsPage from './pages/GiftCardsPage';
+import WorkboardPage from './pages/WorkboardPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, isLoading } = useAuth();
@@ -58,6 +59,7 @@ export default function App() {
         <Route path="loyalty" element={<LoyaltyPage />} />
         <Route path="promotions" element={<PromotionsPage />} />
         <Route path="gift-cards" element={<GiftCardsPage />} />
+        <Route path="workboard" element={<WorkboardPage />} />
       </Route>
     </Routes>
   );

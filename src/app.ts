@@ -39,6 +39,7 @@ import inventoryRouter  from './modules/inventory/inventory.routes';
 
 // Routes — POS
 import posRouter        from './modules/pos/pos.routes';
+import posPhase2Router  from './modules/pos/pos-phase2.routes';
 
 // Routes — RFID
 import rfidRouter       from './modules/rfid/rfid.routes';
@@ -151,6 +152,7 @@ app.use('/api/crm',        crmRouter);
 app.use('/api/invoices',   invoicesRouter);
 app.use('/api/inventory',  inventoryRouter);
 app.use('/api/pos',        posRouter);
+app.use('/api/pos',        posPhase2Router);
 app.use('/api/rfid',       rfidRouter);
 app.use('/api/scan',       scanRouter);
 app.use('/api/notifications', notificationsRouter);

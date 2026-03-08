@@ -186,6 +186,55 @@ export const SPECIAL_INSTRUCTIONS = [
   { value: 'HANGER', label: 'על קולב', icon: '🪝' },
 ];
 
+// Item-level statuses (for workboard/kanban)
+export const ITEM_STATUS_FLOW = ['ITEM_RECEIVED', 'SORTING', 'IN_WASH', 'IN_DRY', 'IN_IRON', 'FOLDING', 'PACKED', 'ITEM_DELIVERED'];
+
+export const ITEM_STATUS_LABELS: Record<string, string> = {
+  ITEM_RECEIVED: 'התקבל',
+  SORTING: 'מיון',
+  IN_WASH: 'בכביסה',
+  IN_DRY: 'בייבוש',
+  IN_IRON: 'בגיהוץ',
+  FOLDING: 'קיפול',
+  PACKED: 'ארוז',
+  ITEM_DELIVERED: 'נמסר',
+  LOST: 'אבד',
+};
+
+export const ITEM_STATUS_COLORS: Record<string, string> = {
+  ITEM_RECEIVED: 'bg-yellow-100 text-yellow-700 border-yellow-300',
+  SORTING: 'bg-amber-100 text-amber-700 border-amber-300',
+  IN_WASH: 'bg-cyan-100 text-cyan-700 border-cyan-300',
+  IN_DRY: 'bg-orange-100 text-orange-700 border-orange-300',
+  IN_IRON: 'bg-purple-100 text-purple-700 border-purple-300',
+  FOLDING: 'bg-blue-100 text-blue-700 border-blue-300',
+  PACKED: 'bg-green-100 text-green-700 border-green-300',
+  ITEM_DELIVERED: 'bg-emerald-100 text-emerald-700 border-emerald-300',
+  LOST: 'bg-red-100 text-red-700 border-red-300',
+};
+
+export const ITEM_STATUS_ICONS: Record<string, string> = {
+  ITEM_RECEIVED: '📥',
+  SORTING: '🔀',
+  IN_WASH: '🫧',
+  IN_DRY: '☀️',
+  IN_IRON: '♨️',
+  FOLDING: '📦',
+  PACKED: '✅',
+  ITEM_DELIVERED: '🚚',
+  LOST: '❌',
+};
+
+export const ITEM_NEXT_STATUS: Record<string, string> = {
+  ITEM_RECEIVED: 'SORTING',
+  SORTING: 'IN_WASH',
+  IN_WASH: 'IN_DRY',
+  IN_DRY: 'IN_IRON',
+  IN_IRON: 'FOLDING',
+  FOLDING: 'PACKED',
+  PACKED: 'ITEM_DELIVERED',
+};
+
 // Payment method labels
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   CASH: 'מזומן',

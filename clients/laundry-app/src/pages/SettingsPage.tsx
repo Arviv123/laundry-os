@@ -5,7 +5,7 @@ import { useToast } from '../contexts/ToastContext';
 import api from '../lib/api';
 import {
   Settings, Building2, User, Bell, Palette, Save, Shield,
-  Plus, X, UserPlus, Trash2, Mail,
+  Plus, X, UserPlus, Trash2, Mail, QrCode, Barcode,
 } from 'lucide-react';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -39,6 +39,10 @@ export default function SettingsPage() {
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserRole, setNewUserRole] = useState('COUNTER_STAFF');
   const [newUserName, setNewUserName] = useState('');
+
+  const [ticketCodeMode, setTicketCodeMode] = useState(
+    () => localStorage.getItem('ticket-code-mode') || 'qr'
+  );
 
   const [notifSettings, setNotifSettings] = useState({
     orderReceived: true,
@@ -304,6 +308,26 @@ export default function SettingsPage() {
             <div className="bg-white rounded-xl shadow-sm border p-6 space-y-4">
               <h2 className="text-lg font-semibold text-gray-800">תצוגה</h2>
               <div className="space-y-3">
+                <div className="p-4 border rounded-lg">
+                  <div className="font-medium text-gray-800 mb-2">קוד על פתקיות</div>
+                  <div className="text-sm text-gray-400 mb-3">בחר את סוג הקוד שיודפס על פתקיות הפריטים</div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => { localStorage.setItem('ticket-code-mode', 'qr'); setTicketCodeMode('qr'); }}
+                      className={`flex items-center gap-2 px-4 py-3 rounded-lg text-sm font-medium border-2 transition-colors ${
+                        ticketCodeMode === 'qr' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100'
+                      }`}>
+                      <QrCode className="w-5 h-5" /> QR Code
+                    </button>
+                    <button
+                      onClick={() => { localStorage.setItem('ticket-code-mode', 'barcode'); setTicketCodeMode('barcode'); }}
+                      className={`flex items-center gap-2 px-4 py-3 rounded-lg text-sm font-medium border-2 transition-colors ${
+                        ticketCodeMode === 'barcode' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100'
+                      }`}>
+                      <Barcode className="w-5 h-5" /> ברקוד (Code128)
+                    </button>
+                  </div>
+                </div>
                 <div className="p-4 border rounded-lg">
                   <div className="font-medium text-gray-800 mb-2">ערכת נושא</div>
                   <div className="flex gap-3">
