@@ -107,10 +107,17 @@ export default function AddressAutocomplete({
 
   const handleSelect = (result: NominatimResult) => {
     const addr = result.address;
-    const street = [addr.road, addr.house_number].filter(Boolean).join(' ');
+    const road = [addr.road, addr.house_number].filter(Boolean).join(' ');
     const city = addr.city || addr.town || addr.village || '';
+    const suburb = addr.suburb || '';
 
-    const display = [street, city].filter(Boolean).join(', ');
+    // If no specific road, use suburb or the formatted display as street fallback
+    // so that city-only selections (like "תל אביב") still have usable data
+    const street = road || suburb || city;
+
+    const display = road
+      ? [road, city].filter(Boolean).join(', ')
+      : [city, suburb].filter(Boolean).join(', ') || result.display_name.split(',').slice(0, 2).join(',');
     setQuery(display);
     setIsOpen(false);
     onChange({ ...value, street, city });

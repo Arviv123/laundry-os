@@ -293,9 +293,9 @@ export default function PhoneDeliveryPage() {
       case 0:
         return !!selectedCustomer;
       case 1:
-        return !!pickup.street.trim() && !!pickup.city.trim() && !!pickup.date && !!pickup.timeWindow;
+        return !!(pickup.street.trim() || pickup.city.trim()) && !!pickup.date && !!pickup.timeWindow;
       case 2:
-        if (delivery.type === 'different') return !!delivery.street.trim() && !!delivery.city.trim() && !!delivery.date;
+        if (delivery.type === 'different') return !!(delivery.street.trim() || delivery.city.trim()) && !!delivery.date;
         if (delivery.type === 'store') return true;
         return !!delivery.date;
       case 3:
