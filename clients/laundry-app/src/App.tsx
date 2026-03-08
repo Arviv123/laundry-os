@@ -76,6 +76,7 @@ export default function App() {
         <Route path="tasks" element={<TasksPage />} />
         <Route path="delivery-mgmt" element={<DeliveryMgmtPage />} />
         <Route path="phone-delivery" element={<PhoneDeliveryPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
   );

@@ -131,7 +131,7 @@ export default function Layout() {
                 </button>
               )}
               {(expandedSections[section.title] || !sidebarOpen) && section.items.map((item) => {
-                const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
+                const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path + '/'));
                 const Icon = item.icon;
                 return (
                   <Link
