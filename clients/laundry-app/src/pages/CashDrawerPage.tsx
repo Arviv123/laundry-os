@@ -72,7 +72,7 @@ const PAYMENT_METHOD_COLORS: Record<string, string> = {
   OTHER: '#6b7280',
 };
 
-type TabId = 'shift' | 'count' | 'events' | 'history' | 'payments' | 'close';
+type TabId = 'shift' | 'count' | 'events' | 'history' | 'payments' | 'reports' | 'close';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN COMPONENT
@@ -285,6 +285,7 @@ export default function CashDrawerPage() {
     { id: 'events', label: 'אירועים', icon: Receipt, requiresSession: true },
     { id: 'history', label: 'היסטוריית משמרות', icon: History },
     { id: 'payments', label: 'תשלומים', icon: CreditCard },
+    { id: 'reports', label: 'דוחות X/Z', icon: FileText },
     ...(currentSession ? [{ id: 'close' as TabId, label: 'סגירת משמרת', icon: Lock, requiresSession: true }] : []),
   ];
 
@@ -457,7 +458,12 @@ export default function CashDrawerPage() {
           />
         )}
 
-        {/* ═══ Tab 6: Close Shift ═══ */}
+        {/* ═══ Tab 6: Reports X/Z ═══ */}
+        {activeTab === 'reports' && (
+          <XZReportsTab sessionId={currentSession?.id} />
+        )}
+
+        {/* ═══ Tab 7: Close Shift ═══ */}
         {activeTab === 'close' && currentSession && (
           <CloseShiftTab
             currentSession={currentSession}
@@ -1789,6 +1795,207 @@ function CashModal({ type, onClose, onSubmit, isPending, maxAmount }: {
               <>{isIn ? <ArrowDownCircle className="w-5 h-5" /> : <ArrowUpCircle className="w-5 h-5" />} {isIn ? 'הכנס' : 'הוצא'}</>
             )}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   X/Z REPORTS TAB
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function XZReportsTab({ sessionId }: { sessionId?: string }) {
+  const queryClient = useQueryClient();
+  const { addToast } = useToast();
+  const [showZConfirm, setShowZConfirm] = useState(false);
+  const [zListOpen, setZListOpen] = useState(false);
+
+  // Fetch X-Report (live)
+  const { data: xReport, isLoading: xLoading, refetch: refetchX } = useQuery({
+    queryKey: ['x-report', sessionId],
+    queryFn: async () => {
+      const res = await api.get('/pos/reports/x-report', { params: { sessionId } });
+      return res.data.data ?? res.data;
+    },
+  });
+
+  // Fetch past Z-Reports
+  const { data: zReportsRaw, isLoading: zLoading } = useQuery({
+    queryKey: ['z-reports'],
+    queryFn: async () => {
+      const res = await api.get('/pos/reports/z-reports');
+      return res.data.data ?? res.data;
+    },
+    enabled: zListOpen,
+  });
+  const zReports = Array.isArray(zReportsRaw) ? zReportsRaw : [];
+
+  // Generate Z-Report
+  const zMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.post('/pos/reports/z-report', {
+        sessionId,
+        reportDate: new Date().toISOString(),
+        closingFloat: 0,
+      });
+      return res.data.data ?? res.data;
+    },
+    onSuccess: () => {
+      addToast('דוח Z נוצר בהצלחה', 'success');
+      setShowZConfirm(false);
+      queryClient.invalidateQueries({ queryKey: ['z-reports'] });
+    },
+    onError: () => addToast('שגיאה ביצירת דוח Z', 'error'),
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* ── X-Report (Live) ── */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-blue-600 text-white px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="w-5 h-5" />
+            <h3 className="font-bold text-lg">דוח X — סיכום חי</h3>
+          </div>
+          <button onClick={() => refetchX()} className="px-3 py-1.5 bg-blue-500 hover:bg-blue-400 rounded-lg text-sm flex items-center gap-1">
+            <RefreshCw className="w-4 h-4" /> רענן
+          </button>
+        </div>
+
+        {xLoading ? (
+          <div className="p-8 text-center text-gray-400">טוען דוח X...</div>
+        ) : xReport ? (
+          <div className="p-6 space-y-4">
+            <div className="text-xs text-gray-400 text-left">
+              {xReport.generatedAt ? new Date(xReport.generatedAt).toLocaleString('he-IL') : ''}
+            </div>
+
+            {/* KPI Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-green-50 rounded-xl p-4 text-center border border-green-200">
+                <div className="text-2xl font-bold text-green-700">{fmtCurrency(xReport.totalSales ?? 0)}</div>
+                <div className="text-xs text-green-600 mt-1">סה״כ מכירות</div>
+              </div>
+              <div className="bg-red-50 rounded-xl p-4 text-center border border-red-200">
+                <div className="text-2xl font-bold text-red-700">{fmtCurrency(xReport.totalReturns ?? 0)}</div>
+                <div className="text-xs text-red-600 mt-1">החזרות</div>
+              </div>
+              <div className="bg-blue-50 rounded-xl p-4 text-center border border-blue-200">
+                <div className="text-2xl font-bold text-blue-700">{fmtCurrency(xReport.netSales ?? 0)}</div>
+                <div className="text-xs text-blue-600 mt-1">מכירות נטו</div>
+              </div>
+              <div className="bg-purple-50 rounded-xl p-4 text-center border border-purple-200">
+                <div className="text-2xl font-bold text-purple-700">{fmtCurrency(xReport.totalVat ?? 0)}</div>
+                <div className="text-xs text-purple-600 mt-1">מע״מ</div>
+              </div>
+            </div>
+
+            {/* Counts */}
+            <div className="flex gap-6 text-sm text-gray-600 justify-center">
+              <span>עסקאות: <strong>{xReport.transactionCount ?? 0}</strong></span>
+              <span>החזרות: <strong>{xReport.returnCount ?? 0}</strong></span>
+              {xReport.openingFloat !== undefined && (
+                <span>מזומן פתיחה: <strong>{fmtCurrency(xReport.openingFloat)}</strong></span>
+              )}
+            </div>
+
+            {/* Payment methods breakdown */}
+            {xReport.byPaymentMethod && Object.keys(xReport.byPaymentMethod).length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-2">פירוט לפי אמצעי תשלום</h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {Object.entries(xReport.byPaymentMethod).map(([method, amount]) => (
+                    <div key={method} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2 border">
+                      <span className="text-sm text-gray-600">{PAYMENT_METHOD_LABELS[method] ?? method}</span>
+                      <span className="font-semibold text-gray-800">{fmtCurrency(amount as number)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="p-8 text-center text-gray-400">אין נתונים להצגה</div>
+        )}
+      </div>
+
+      {/* ── Z-Report (End of Day) ── */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-amber-600 text-white px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FileText className="w-5 h-5" />
+            <h3 className="font-bold text-lg">דוח Z — סגירת יום</h3>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setZListOpen(!zListOpen)}
+              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 rounded-lg text-sm flex items-center gap-1">
+              <History className="w-4 h-4" /> היסטוריה
+            </button>
+            <button onClick={() => setShowZConfirm(true)}
+              className="px-3 py-1.5 bg-red-600 hover:bg-red-500 rounded-lg text-sm flex items-center gap-1 font-medium">
+              <Lock className="w-4 h-4" /> הפק דוח Z
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6">
+          <p className="text-sm text-gray-500 mb-4">
+            דוח Z סוגר את היום ומייצר סיכום סופי. לאחר הפקה לא ניתן לשנות את הנתונים.
+          </p>
+
+          {/* Z-Report confirm dialog */}
+          {showZConfirm && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
+              <div className="flex items-center gap-2 text-red-700 font-semibold mb-2">
+                <AlertCircle className="w-5 h-5" />
+                האם להפיק דוח Z לסגירת יום?
+              </div>
+              <p className="text-sm text-red-600 mb-3">פעולה זו תיצור דוח סופי ותנעל את הנתונים.</p>
+              <div className="flex gap-2">
+                <button onClick={() => zMutation.mutate()}
+                  disabled={zMutation.isPending}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm font-medium disabled:opacity-50">
+                  {zMutation.isPending ? 'מפיק...' : 'אישור — הפק דוח Z'}
+                </button>
+                <button onClick={() => setShowZConfirm(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm">
+                  ביטול
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Past Z-Reports list */}
+          {zListOpen && (
+            <div>
+              <h4 className="text-sm font-semibold text-gray-700 mb-3">דוחות Z קודמים</h4>
+              {zLoading ? (
+                <div className="text-center py-4 text-gray-400">טוען...</div>
+              ) : zReports.length === 0 ? (
+                <div className="text-center py-4 text-gray-400">אין דוחות Z קודמים</div>
+              ) : (
+                <div className="space-y-2">
+                  {zReports.map((zr: any) => (
+                    <div key={zr.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3 border">
+                      <div>
+                        <div className="font-medium text-gray-800">
+                          {zr.reportDate ? new Date(zr.reportDate).toLocaleDateString('he-IL') : zr.id.slice(-8)}
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          {zr.createdAt ? new Date(zr.createdAt).toLocaleString('he-IL') : ''}
+                        </div>
+                      </div>
+                      <div className="text-left">
+                        <div className="font-bold text-gray-900">{fmtCurrency(Number(zr.netSales ?? zr.totalSales ?? 0))}</div>
+                        <div className="text-xs text-gray-400">{zr.transactionCount ?? 0} עסקאות</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
