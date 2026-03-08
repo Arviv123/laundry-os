@@ -66,7 +66,7 @@ export default function LoyaltyPage() {
   });
 
   const earnMutation = useMutation({
-    mutationFn: (data: { points: number; reason: string }) =>
+    mutationFn: (data: { amount: number; description?: string }) =>
       api.post(`/pos/loyalty/customers/${selectedCustomer.id}/earn`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['loyalty-account', selectedCustomer?.id] });
@@ -288,7 +288,7 @@ export default function LoyaltyPage() {
               <button onClick={() => setShowEarnModal(false)}
                 className="flex-1 py-2.5 bg-gray-200 text-gray-700 rounded-xl font-medium text-sm">ביטול</button>
               <button
-                onClick={() => earnAmount && earnMutation.mutate({ points: Number(earnAmount), reason: earnReason })}
+                onClick={() => earnAmount && earnMutation.mutate({ amount: Number(earnAmount), description: earnReason })}
                 disabled={!earnAmount || earnMutation.isPending}
                 className="flex-1 py-2.5 bg-green-600 text-white rounded-xl font-medium text-sm disabled:opacity-40">
                 {earnMutation.isPending ? 'מעבד...' : `הוסף ${earnAmount || 0} נקודות`}

@@ -8,8 +8,8 @@ import {
 } from 'lucide-react';
 
 const DISCOUNT_TYPES: Record<string, string> = {
-  PERCENTAGE: 'אחוז הנחה',
-  FIXED_AMOUNT: 'סכום קבוע',
+  PERCENT_OFF: 'אחוז הנחה',
+  AMOUNT_OFF: 'סכום קבוע',
   BUY_X_GET_Y: 'קנה X קבל Y',
 };
 
@@ -21,7 +21,7 @@ export default function PromotionsPage() {
 
   // Form state
   const [formName, setFormName] = useState('');
-  const [formType, setFormType] = useState('PERCENTAGE');
+  const [formType, setFormType] = useState('PERCENT_OFF');
   const [formValue, setFormValue] = useState('');
   const [formMinOrder, setFormMinOrder] = useState('');
   const [formCode, setFormCode] = useState('');
@@ -65,16 +65,16 @@ export default function PromotionsPage() {
   const resetForm = () => {
     setShowForm(false);
     setEditingPromo(null);
-    setFormName(''); setFormType('PERCENTAGE'); setFormValue('');
+    setFormName(''); setFormType('PERCENT_OFF'); setFormValue('');
     setFormMinOrder(''); setFormCode(''); setFormStartDate(''); setFormEndDate('');
   };
 
   const openEdit = (promo: any) => {
     setEditingPromo(promo);
     setFormName(promo.name);
-    setFormType(promo.discountType || 'PERCENTAGE');
-    setFormValue(String(promo.discountValue || ''));
-    setFormMinOrder(String(promo.minOrderAmount || ''));
+    setFormType(promo.type || 'PERCENT_OFF');
+    setFormValue(String(promo.value || ''));
+    setFormMinOrder(String(promo.minPurchase || ''));
     setFormCode(promo.code || '');
     setFormStartDate(promo.startDate?.slice(0, 10) || '');
     setFormEndDate(promo.endDate?.slice(0, 10) || '');
@@ -84,13 +84,12 @@ export default function PromotionsPage() {
   const handleSubmit = () => {
     const payload = {
       name: formName,
-      discountType: formType,
-      discountValue: Number(formValue),
-      minOrderAmount: formMinOrder ? Number(formMinOrder) : undefined,
+      type: formType,
+      value: Number(formValue),
+      minPurchase: formMinOrder ? Number(formMinOrder) : undefined,
       code: formCode || undefined,
-      startDate: formStartDate || undefined,
-      endDate: formEndDate || undefined,
-      isActive: true,
+      startDate: formStartDate ? new Date(formStartDate).toISOString() : new Date().toISOString(),
+      endDate: formEndDate ? new Date(formEndDate).toISOString() : undefined,
     };
     if (editingPromo) {
       updateMutation.mutate({ id: editingPromo.id, data: payload });
@@ -179,10 +178,10 @@ export default function PromotionsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1 block">
-                    {formType === 'PERCENTAGE' ? 'אחוז הנחה' : 'סכום הנחה'} *
+                    {formType === 'PERCENT_OFF' ? 'אחוז הנחה' : 'סכום הנחה'} *
                   </label>
                   <input type="number" value={formValue} onChange={e => setFormValue(e.target.value)}
-                    placeholder={formType === 'PERCENTAGE' ? '20' : '50'}
+                    placeholder={formType === 'PERCENT_OFF' ? '20' : '50'}
                     className="w-full px-3 py-2 border rounded-lg" />
                 </div>
                 <div>
@@ -254,14 +253,14 @@ function PromoCard({ promo, onEdit, onDelete }: { promo: any; onEdit: () => void
         <div className="flex items-center gap-2">
           <Percent className="w-4 h-4 text-gray-400" />
           <span className="font-bold text-purple-600">
-            {promo.discountType === 'PERCENTAGE'
-              ? `${promo.discountValue}% הנחה`
-              : `${promo.discountValue} ₪ הנחה`}
+            {promo.type === 'PERCENT_OFF'
+              ? `${promo.value}% הנחה`
+              : `${promo.value} ₪ הנחה`}
           </span>
         </div>
 
-        {promo.minOrderAmount > 0 && (
-          <div className="text-gray-500">מינ׳ הזמנה: {promo.minOrderAmount} ₪</div>
+        {promo.minPurchase > 0 && (
+          <div className="text-gray-500">מינ׳ הזמנה: {promo.minPurchase} ₪</div>
         )}
 
         {promo.code && (
