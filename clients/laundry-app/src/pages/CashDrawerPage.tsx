@@ -144,12 +144,18 @@ export default function CashDrawerPage() {
   // Cash count
   const cashCountMutation = useMutation({
     mutationFn: () => {
-      const denominations = Object.entries(countDenoms)
-        .filter(([, qty]) => qty > 0)
-        .map(([value, quantity]) => ({ denomination: Number(value), quantity }));
       return api.post('/pos/drawer/count', {
         sessionId: currentSession.id,
-        denominations,
+        bills_200: countDenoms[200] || 0,
+        bills_100: countDenoms[100] || 0,
+        bills_50: countDenoms[50] || 0,
+        bills_20: countDenoms[20] || 0,
+        coins_10: countDenoms[10] || 0,
+        coins_5: countDenoms[5] || 0,
+        coins_2: countDenoms[2] || 0,
+        coins_1: countDenoms[1] || 0,
+        coins_050: countDenoms[0.5] || 0,
+        coins_010: countDenoms[0.1] || 0,
       });
     },
     onSuccess: () => {

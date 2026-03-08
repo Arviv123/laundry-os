@@ -32,7 +32,29 @@ const CustomerSchema = z.object({
 
 // GET /crm/customers
 router.get('/customers', async (req: AuthenticatedRequest, res: Response) => {
-  const { status, type, page = '1', pageSize = '25', search } = req.query;
+  const { status, type, page = '1', pageSize = '25', search, segment } = req.query;
+
+  // Build segment filter
+  const segmentFilter: Record<string, any> = {};
+  if (segment) {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    switch (segment) {
+      case 'VIP':
+        segmentFilter.totalOrders = { gte: 10 };
+        break;
+      case 'INACTIVE':
+        segmentFilter.NOT = { laundryOrders: { some: { receivedAt: { gte: thirtyDaysAgo } } } };
+        break;
+      case 'NEW':
+        segmentFilter.createdAt = { gte: thirtyDaysAgo };
+        break;
+      case 'HIGH_VALUE':
+        segmentFilter.totalSpent = { gte: 1000 };
+        break;
+    }
+  }
 
   const where = withTenant(req, {
     ...(status ? { status: status as any } : {}),
@@ -44,6 +66,7 @@ router.get('/customers', async (req: AuthenticatedRequest, res: Response) => {
         { phone: { contains: search as string } },
       ],
     } : {}),
+    ...segmentFilter,
   });
 
   const [items, total] = await Promise.all([

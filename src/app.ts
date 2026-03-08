@@ -85,6 +85,9 @@ import expensesRouter from './modules/expenses/expenses.routes';
 // Routes — Marketing Automations
 import automationsRouter from './modules/automations/automations.routes';
 
+// Routes — Price Lists
+import priceListsRouter from './modules/price-lists/price-lists.routes';
+
 // Swagger
 import { swaggerSpec } from './config/swagger';
 
@@ -182,6 +185,7 @@ app.use('/api/payment-terminals', paymentTerminalRouter);
 app.use('/api/exports', exportsRouter);
 app.use('/api/expenses', expensesRouter);
 app.use('/api/automations', automationsRouter);
+app.use('/api/price-lists', priceListsRouter);
 
 // ─── Laundry Routes ──────────────────────────────────────────
 app.use('/api/orders',           ordersRouter);

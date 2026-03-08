@@ -6,7 +6,7 @@ import api from '../lib/api';
 import {
   Settings, Building2, User, Bell, Palette, Save, Shield,
   Plus, X, UserPlus, Trash2, Mail, QrCode, Barcode,
-  Image, Clock, Receipt, FileText, Upload,
+  Image, Clock, Receipt, FileText, Upload, Link2, Copy, ExternalLink,
 } from 'lucide-react';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -192,6 +192,7 @@ export default function SettingsPage() {
     { id: 'notifications', label: 'התראות', icon: Bell },
     { id: 'appearance', label: 'תצוגה', icon: Palette },
     { id: 'security', label: 'אבטחה', icon: Shield },
+    { id: 'customer-link', label: 'קישור ללקוחות', icon: Link2 },
   ];
 
   const userList = Array.isArray(users) ? users : [];
@@ -665,6 +666,72 @@ export default function SettingsPage() {
               </div>
             </div>
           )}
+          {/* ═══ Customer Link ═══ */}
+          {activeTab === 'customer-link' && (
+            <div className="bg-white rounded-xl shadow-sm border p-6 space-y-6">
+              <h2 className="text-lg font-semibold text-gray-800">קישור פורטל לקוח</h2>
+              <p className="text-sm text-gray-500">שתפו את הקישור הזה עם הלקוחות שלכם כדי שיוכלו לעקוב אחרי הזמנות, להזמין משלוח ולנהל את החשבון שלהם.</p>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 space-y-4">
+                <div className="flex items-center gap-2 text-blue-700 font-semibold">
+                  <ExternalLink className="w-5 h-5" />
+                  קישור לפורטל לקוח
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    readOnly
+                    value={`${window.location.origin.replace('laundry-os-app', 'laundry-customer')}/login`}
+                    className="flex-1 px-4 py-3 bg-white border rounded-lg text-sm text-gray-700 font-mono"
+                    dir="ltr"
+                  />
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin.replace('laundry-os-app', 'laundry-customer')}/login`);
+                      addToast('הקישור הועתק');
+                    }}
+                    className="flex items-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                  >
+                    <Copy className="w-4 h-4" /> העתק
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-green-50 border border-green-200 rounded-xl p-5 space-y-4">
+                <div className="flex items-center gap-2 text-green-700 font-semibold">
+                  <ExternalLink className="w-5 h-5" />
+                  קישור לאפליקציית שליח
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    readOnly
+                    value={`${window.location.origin.replace('laundry-os-app', 'laundry-courier')}/login`}
+                    className="flex-1 px-4 py-3 bg-white border rounded-lg text-sm text-gray-700 font-mono"
+                    dir="ltr"
+                  />
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin.replace('laundry-os-app', 'laundry-courier')}/login`);
+                      addToast('הקישור הועתק');
+                    }}
+                    className="flex items-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                  >
+                    <Copy className="w-4 h-4" /> העתק
+                  </button>
+                </div>
+              </div>
+
+              <div className="border rounded-xl p-5 space-y-3">
+                <h3 className="font-semibold text-gray-800">איך זה עובד?</h3>
+                <div className="space-y-2 text-sm text-gray-600">
+                  <p>1. שלחו את הקישור ללקוח דרך WhatsApp או SMS</p>
+                  <p>2. הלקוח מזין את מספר הטלפון שלו</p>
+                  <p>3. הלקוח מזין קוד אימות (קוד מאסטר: <span className="font-mono bg-gray-100 px-2 py-0.5 rounded">5252</span>)</p>
+                  <p>4. אם הלקוח קיים במערכת — נכנס ישירות. אם לא — נרשם אוטומטית</p>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
     </div>

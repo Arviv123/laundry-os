@@ -207,9 +207,6 @@ router.get('/pos/:barcode', asyncHandler(async (req: AuthenticatedRequest, res: 
     },
     include: {
       category: { select: { name: true } },
-      priceListItems: priceListId
-        ? { where: { priceListId }, take: 1 }
-        : undefined,
       stockLevels: {
         where: warehouseId
           ? { warehouseId }
@@ -225,13 +222,9 @@ router.get('/pos/:barcode', asyncHandler(async (req: AuthenticatedRequest, res: 
     return;
   }
 
-  // Resolve price: price list → default selling price
-  let unitPrice = Number(product.sellingPrice);
-  if (priceListId && product.priceListItems && product.priceListItems.length > 0) {
-    unitPrice = Number(product.priceListItems[0].unitPrice);
-  }
+  const unitPrice = Number(product.sellingPrice);
 
-  const stockLevel = product.stockLevels[0];
+  const stockLevel = (product as any).stockLevels?.[0];
   const available  = stockLevel ? Number(stockLevel.quantity) : null;
 
   // Warn if out of stock (but don't block — service items have no stock)
@@ -252,7 +245,7 @@ router.get('/pos/:barcode', asyncHandler(async (req: AuthenticatedRequest, res: 
     quantity:    1,         // default — cashier can change
     discount:    0,
     isService:   product.isService,
-    category:    product.category?.name ?? null,
+    category:    (product as any).category?.name ?? null,
     // Stock info
     availableStock: available,
     warehouseId:    stockLevel?.warehouse?.id ?? null,
@@ -277,9 +270,6 @@ router.get('/invoice-line/:barcode', asyncHandler(async (req: AuthenticatedReque
     },
     include: {
       category: { select: { name: true } },
-      priceListItems: priceListId
-        ? { where: { priceListId }, take: 1 }
-        : undefined,
     },
   });
 
@@ -288,10 +278,7 @@ router.get('/invoice-line/:barcode', asyncHandler(async (req: AuthenticatedReque
     return;
   }
 
-  let unitPrice = Number(product.sellingPrice);
-  if (priceListId && product.priceListItems && product.priceListItems.length > 0) {
-    unitPrice = Number(product.priceListItems[0].unitPrice);
-  }
+  const unitPrice = Number(product.sellingPrice);
 
   sendSuccess(res, {
     productId:    product.id,
@@ -304,7 +291,7 @@ router.get('/invoice-line/:barcode', asyncHandler(async (req: AuthenticatedReque
     unitOfMeasure: product.unitOfMeasure,
     quantity:     1,
     isService:    product.isService,
-    category:     product.category?.name ?? null,
+    category:     (product as any).category?.name ?? null,
   });
 }));
 

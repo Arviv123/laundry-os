@@ -1186,7 +1186,6 @@ model Product {
   poLines        PurchaseOrderLine[]
   billLines      BillLine[]
   recurringLines RecurringInvoiceLine[]
-  priceListItems PriceListItem[]
   quoteLines     QuoteLine[]
   contractLines  ContractLine[]
   posOrderItems  PosOrderItem[]
@@ -2112,41 +2111,32 @@ model RecurringInvoiceLine {
 
 // ─── Phase 3: Price Lists ─────────────────────────────────────────
 
-enum PriceListType {
-  CUSTOMER_SPECIFIC
-  VOLUME_DISCOUNT
-  PROMOTIONAL
-}
-
 model PriceList {
-  id          String        @id @default(cuid())
+  id          String           @id @default(cuid())
   tenantId    String
-  tenant      Tenant        @relation(fields: [tenantId], references: [id])
-  name        String
-  type        PriceListType @default(CUSTOMER_SPECIFIC)
-  discountPct Decimal?      // flat discount percentage if no per-product override
-  startDate   DateTime?
-  endDate     DateTime?
-  isDefault   Boolean       @default(false)
+  tenant      Tenant           @relation(fields: [tenantId], references: [id])
+  name        String           // e.g., "Standard", "Hotel", "VIP"
+  description String?
+  isDefault   Boolean          @default(false)
+  isActive    Boolean          @default(true)
   items       PriceListItem[]
-  customers   Customer[]    @relation("CustomerPriceList")
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  customers   Customer[]       @relation("CustomerPriceList")
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
-  @@unique([tenantId, name])
-  @@index([tenantId])
+  @@index([tenantId, isActive])
 }
 
 model PriceListItem {
-  id          String    @id @default(cuid())
+  id          String         @id @default(cuid())
   priceListId String
-  priceList   PriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
-  productId   String
-  product     Product   @relation(fields: [productId], references: [id])
-  unitPrice   Decimal   // override price for this product
-  minQty      Decimal   @default(1) // minimum quantity for this price
+  priceList   PriceList      @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  serviceId   String
+  service     LaundryService @relation(fields: [serviceId], references: [id])
+  price       Decimal        @db.Decimal(10, 2)
+  createdAt   DateTime       @default(now())
 
-  @@unique([priceListId, productId])
+  @@unique([priceListId, serviceId])
   @@index([priceListId])
 }
 
@@ -3970,6 +3960,7 @@ model LaundryService {
 
   tenant            Tenant                  @relation(fields: [tenantId], references: [id])
   orderItems        LaundryOrderItem[]
+  priceListItems    PriceListItem[]
 
   @@index([tenantId])
   @@map("laundry_services")

@@ -9,7 +9,7 @@ import api from '../lib/api';
 import {
   Users, Search, Phone, Mail, Plus, X, UserPlus,
   Upload, Wallet, ShoppingBag, ArrowRight,
-  RefreshCw, Clock, CreditCard,
+  RefreshCw, Clock, CreditCard, Filter,
 } from 'lucide-react';
 
 export default function CustomersPage() {
@@ -19,15 +19,40 @@ export default function CustomersPage() {
   const { addToast } = useToast();
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
+  const [segment, setSegment] = useState<string>('');
   const [showNewForm, setShowNewForm] = useState(false);
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newType, setNewType] = useState('B2C');
 
+  const segments = [
+    { key: '',           label: 'הכל' },
+    { key: 'VIP',        label: 'VIP' },
+    { key: 'INACTIVE',   label: 'לא פעילים' },
+    { key: 'NEW',        label: 'חדשים' },
+    { key: 'HIGH_VALUE', label: 'ערך גבוה' },
+  ];
+
   const { data, isLoading } = useQuery({
-    queryKey: ['customers', debouncedSearch],
-    queryFn: () => api.get('/crm/customers', { params: { search: debouncedSearch || undefined, limit: 50 } }).then(r => r.data.data ?? r.data),
+    queryKey: ['customers', debouncedSearch, segment],
+    queryFn: () => api.get('/crm/customers', { params: { search: debouncedSearch || undefined, segment: segment || undefined, limit: 50 } }).then(r => r.data.data ?? r.data),
+  });
+
+  // Fetch counts per segment for badges
+  const { data: segmentCounts } = useQuery({
+    queryKey: ['customer-segment-counts'],
+    queryFn: async () => {
+      const keys = ['VIP', 'INACTIVE', 'NEW', 'HIGH_VALUE'];
+      const results = await Promise.all(
+        keys.map(s => api.get('/crm/customers', { params: { segment: s, pageSize: 1 } }).then(r => {
+          const meta = r.data.meta ?? r.data;
+          return { segment: s, count: meta.total ?? 0 };
+        }))
+      );
+      return Object.fromEntries(results.map(r => [r.segment, r.count]));
+    },
+    staleTime: 30_000,
   });
 
   const customers = Array.isArray(data) ? data : data?.customers ?? [];
@@ -43,6 +68,7 @@ export default function CustomersPage() {
     mutationFn: (data: any) => api.post('/crm/customers', data),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: ['customer-segment-counts'] });
       setShowNewForm(false);
       setNewName(''); setNewPhone(''); setNewEmail('');
       addToast(`לקוח ${res.data.data.name} נוצר בהצלחה`);
@@ -94,6 +120,33 @@ export default function CustomersPage() {
           placeholder="חיפוש לפי שם, טלפון או אימייל..."
           className="w-full pr-10 pl-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
         />
+      </div>
+
+      {/* Segment Filter Buttons */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Filter className="w-4 h-4 text-gray-400" />
+        {segments.map(s => (
+          <button
+            key={s.key}
+            onClick={() => setSegment(s.key)}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-1.5 ${
+              segment === s.key
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {s.label}
+            {s.key && segmentCounts?.[s.key] !== undefined && (
+              <span className={`text-xs px-1.5 py-0.5 rounded-full min-w-[20px] text-center ${
+                segment === s.key
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-200 text-gray-500'
+              }`}>
+                {segmentCounts[s.key]}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
 
       <div className="flex gap-6">
