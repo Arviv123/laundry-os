@@ -12,6 +12,7 @@ import {
   MessageCircle, Send, Printer, FileText, DollarSign,
   Phone, Banknote, Wallet, Building, RefreshCw,
   Plus, Pencil, Trash2, ChevronDown, PenTool, X, Save, History,
+  Truck, UserCheck, MapPin, Calendar,
 } from 'lucide-react';
 
 export default function OrderDetailPage() {
@@ -37,6 +38,13 @@ export default function OrderDetailPage() {
   const [editingItem, setEditingItem] = useState<any>(null);
   const [itemForm, setItemForm] = useState({ serviceId: '', description: '', category: '', quantity: '1', color: '', brand: '', specialNotes: '', weight: '' });
   const [itemStatusDropdown, setItemStatusDropdown] = useState<string | null>(null);
+
+  // Driver assignment
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assignDriverId, setAssignDriverId] = useState('');
+  const [assignType, setAssignType] = useState<'PICKUP' | 'DELIVERY'>('DELIVERY');
+  const [assignScheduledAt, setAssignScheduledAt] = useState('');
+  const [assignNotes, setAssignNotes] = useState('');
 
   // Signature
   const [showSignatureModal, setShowSignatureModal] = useState(false);
@@ -92,6 +100,35 @@ export default function OrderDetailPage() {
     queryFn: () => api.get('/services').then(r => r.data.data),
   });
   const serviceList: any[] = Array.isArray(services) ? services : [];
+
+  // Drivers list for assignment
+  const { data: drivers } = useQuery({
+    queryKey: ['drivers'],
+    queryFn: () => api.get('/delivery-mgmt/drivers').then(r => r.data.data),
+  });
+  const driverList: any[] = Array.isArray(drivers) ? drivers : [];
+
+  // Existing assignments for this order
+  const { data: assignments } = useQuery({
+    queryKey: ['order-assignments', id],
+    queryFn: () => api.get('/delivery-mgmt/assignments', { params: { orderId: id } }).then(r => r.data.data),
+    enabled: !!id,
+  });
+  const assignmentList: any[] = Array.isArray(assignments) ? assignments : [];
+
+  // Create assignment
+  const assignMutation = useMutation({
+    mutationFn: (data: any) => api.post('/delivery-mgmt/assignments', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['order-assignments', id] });
+      setShowAssignModal(false);
+      setAssignDriverId('');
+      setAssignNotes('');
+      setAssignScheduledAt('');
+      addToast('נהג שויך להזמנה');
+    },
+    onError: () => addToast('שגיאה בשיוך נהג', 'error'),
+  });
 
   // Add item
   const addItemMutation = useMutation({
@@ -345,6 +382,14 @@ export default function OrderDetailPage() {
           <Send className="w-4 h-4" /> שלח ללקוח
         </button>
 
+        {/* Assign Driver */}
+        {order.deliveryType === 'HOME_DELIVERY' && (
+          <button onClick={() => setShowAssignModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 text-sm font-medium">
+            <Truck className="w-4 h-4" /> שייך נהג
+          </button>
+        )}
+
         {/* Pay Button */}
         {!isPaid && (
           <button onClick={() => { setPayAmount(String(remaining)); setShowPaymentModal(true); }}
@@ -398,6 +443,128 @@ export default function OrderDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Driver Assignment */}
+      {order.deliveryType === 'HOME_DELIVERY' && (
+        <div className="bg-white rounded-xl shadow-sm border p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold text-gray-700 flex items-center gap-2">
+              <Truck className="w-5 h-5 text-gray-400" /> שיוך נהג למשלוח
+            </h2>
+            <button onClick={() => setShowAssignModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 text-sm font-medium">
+              <Plus className="w-4 h-4" /> שייך נהג
+            </button>
+          </div>
+
+          {assignmentList.length > 0 ? (
+            <div className="space-y-2">
+              {assignmentList.map((a: any) => (
+                <div key={a.id} className={`flex items-center justify-between p-3 rounded-lg border ${
+                  a.status === 'COMPLETED' ? 'bg-green-50 border-green-200' :
+                  a.status === 'IN_PROGRESS' ? 'bg-blue-50 border-blue-200' :
+                  'bg-gray-50 border-gray-200'
+                }`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center ${
+                      a.status === 'COMPLETED' ? 'bg-green-100' : 'bg-blue-100'
+                    }`}>
+                      <UserCheck className={`w-4 h-4 ${a.status === 'COMPLETED' ? 'text-green-600' : 'text-blue-600'}`} />
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm">{a.driver?.firstName} {a.driver?.lastName}</div>
+                      <div className="text-xs text-gray-500 flex items-center gap-2">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                          a.type === 'PICKUP' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'
+                        }`}>{a.type === 'PICKUP' ? 'איסוף' : 'משלוח'}</span>
+                        {a.scheduledAt && (
+                          <span className="flex items-center gap-0.5">
+                            <Calendar className="w-3 h-3" />
+                            {new Date(a.scheduledAt).toLocaleString('he-IL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    a.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
+                    a.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
+                    a.status === 'ACCEPTED' ? 'bg-cyan-100 text-cyan-700' :
+                    a.status === 'FAILED' ? 'bg-red-100 text-red-700' :
+                    'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {a.status === 'COMPLETED' ? 'הושלם' :
+                     a.status === 'IN_PROGRESS' ? 'בדרך' :
+                     a.status === 'ACCEPTED' ? 'אושר' :
+                     a.status === 'FAILED' ? 'נכשל' :
+                     'ממתין'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400 text-center py-3">לא שויך נהג עדיין</p>
+          )}
+        </div>
+      )}
+
+      {/* Assign Driver Modal */}
+      {showAssignModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowAssignModal(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <Truck className="w-5 h-5 text-blue-600" /> שיוך נהג
+              </h3>
+              <button onClick={() => setShowAssignModal(false)} className="p-1 hover:bg-gray-100 rounded"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">נהג *</label>
+                <select value={assignDriverId} onChange={e => setAssignDriverId(e.target.value)}
+                  className="w-full px-3 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500">
+                  <option value="">בחר נהג...</option>
+                  {driverList.map((d: any) => (
+                    <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">סוג</label>
+                <select value={assignType} onChange={e => setAssignType(e.target.value as any)}
+                  className="w-full px-3 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500">
+                  <option value="DELIVERY">משלוח</option>
+                  <option value="PICKUP">איסוף</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">מועד מתוכנן</label>
+                <input type="datetime-local" value={assignScheduledAt} onChange={e => setAssignScheduledAt(e.target.value)}
+                  className="w-full px-3 py-2.5 border rounded-xl focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">הערות</label>
+                <textarea value={assignNotes} onChange={e => setAssignNotes(e.target.value)}
+                  placeholder="הערות לנהג..."
+                  className="w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 h-20 resize-none" />
+              </div>
+              <button
+                onClick={() => assignMutation.mutate({
+                  driverId: assignDriverId,
+                  orderId: id,
+                  type: assignType,
+                  scheduledAt: assignScheduledAt ? new Date(assignScheduledAt).toISOString() : undefined,
+                  notes: assignNotes || undefined,
+                })}
+                disabled={!assignDriverId || assignMutation.isPending}
+                className="w-full py-3 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 disabled:opacity-40 flex items-center justify-center gap-2"
+              >
+                {assignMutation.isPending ? 'משייך...' : <><Truck className="w-4 h-4" /> שייך נהג</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Items + Payment */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

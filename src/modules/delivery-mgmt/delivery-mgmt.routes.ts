@@ -39,12 +39,13 @@ const SignAssignmentSchema = z.object({
 // ─── GET /assignments — List Assignments ────────────────────────
 
 router.get('/assignments', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const { driverId, status, type } = req.query;
+  const { driverId, status, type, orderId } = req.query;
 
   const where: any = { tenantId: req.user.tenantId };
   if (driverId) where.driverId = driverId;
   if (status) where.status = status;
   if (type) where.type = type;
+  if (orderId) where.orderId = orderId;
 
   const assignments = await prisma.deliveryAssignment.findMany({
     where,

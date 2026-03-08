@@ -62,6 +62,7 @@ const NAV_SECTIONS = [
     title: 'מערכת',
     items: [
       { path: '/branches', label: 'סניפים', icon: Building2 },
+      { path: '/qr-links', label: 'קישורים ו-QR', icon: QrCode },
       { path: '/import', label: 'ייבוא נתונים', icon: Upload },
       { path: '/settings', label: 'הגדרות', icon: Settings },
     ],
