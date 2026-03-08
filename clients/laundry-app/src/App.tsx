@@ -17,6 +17,11 @@ import InventoryPage from './pages/InventoryPage';
 import BranchesPage from './pages/BranchesPage';
 import SettingsPage from './pages/SettingsPage';
 import ImportPage from './pages/ImportPage';
+import ReportsPage from './pages/ReportsPage';
+import TrackOrderPage from './pages/TrackOrderPage';
+import ScanPage from './pages/ScanPage';
+import LoyaltyPage from './pages/LoyaltyPage';
+import PromotionsPage from './pages/PromotionsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, isLoading } = useAuth();
@@ -29,6 +34,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/track" element={<TrackOrderPage />} />
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index element={<DashboardPage />} />
         <Route path="orders" element={<OrdersPage />} />
@@ -38,6 +44,7 @@ export default function App() {
         <Route path="machines" element={<MachinesPage />} />
         <Route path="delivery" element={<DeliveryPage />} />
         <Route path="customers" element={<CustomersPage />} />
+        <Route path="customers/:id" element={<CustomersPage />} />
         <Route path="prepaid" element={<PrepaidPage />} />
         <Route path="accounting" element={<AccountingPage />} />
         <Route path="invoices" element={<InvoicesPage />} />
@@ -45,7 +52,10 @@ export default function App() {
         <Route path="branches" element={<BranchesPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="import" element={<ImportPage />} />
-        <Route path="customers/:id" element={<CustomersPage />} />
+        <Route path="reports" element={<ReportsPage />} />
+        <Route path="scan" element={<ScanPage />} />
+        <Route path="loyalty" element={<LoyaltyPage />} />
+        <Route path="promotions" element={<PromotionsPage />} />
       </Route>
     </Routes>
   );

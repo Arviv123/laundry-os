@@ -4,10 +4,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDebounce } from '../hooks/useDebounce';
 import { useToast } from '../contexts/ToastContext';
 import api from '../lib/api';
-import { CATEGORY_LABELS, GARMENT_CATEGORIES, GARMENT_SUB_TYPES } from '../lib/constants';
+import { CATEGORY_LABELS, GARMENT_CATEGORIES, GARMENT_SUB_TYPES, STAIN_TYPES, SPECIAL_INSTRUCTIONS } from '../lib/constants';
 import {
   Search, Plus, Minus, X, ShoppingBag, User, Zap,
-  Truck, Store, UserPlus, Tag, Star, Clock,
+  Truck, Store, UserPlus, Tag, Star, Clock, AlertTriangle, Droplets,
 } from 'lucide-react';
 
 interface CartItem {
@@ -21,6 +21,9 @@ interface CartItem {
   customName: string;
   quantity: number;
   unitPrice: number;
+  stains: string[];
+  instructions: string[];
+  notes: string;
 }
 
 let cartItemCounter = 0;
@@ -67,6 +70,9 @@ export default function NewOrderPage() {
   const [detailGarmentType, setDetailGarmentType] = useState('');
   const [detailSubType, setDetailSubType] = useState('');
   const [detailCustomName, setDetailCustomName] = useState('');
+  const [detailStains, setDetailStains] = useState<string[]>([]);
+  const [detailInstructions, setDetailInstructions] = useState<string[]>([]);
+  const [detailNotes, setDetailNotes] = useState('');
 
   // Cart
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -136,6 +142,9 @@ export default function NewOrderPage() {
       customName: service.name,
       quantity: 1,
       unitPrice: Number(service.basePrice),
+      stains: [],
+      instructions: [],
+      notes: '',
     };
     setCart(prev => [...prev, item]);
   }, []);
@@ -166,6 +175,9 @@ export default function NewOrderPage() {
     setDetailGarmentType(item.garmentType);
     setDetailSubType(item.garmentSubType);
     setDetailCustomName(item.customName);
+    setDetailStains(item.stains || []);
+    setDetailInstructions(item.instructions || []);
+    setDetailNotes(item.notes || '');
   };
 
   const saveItemDetail = () => {
@@ -182,6 +194,9 @@ export default function NewOrderPage() {
         garmentSubType: detailSubType || 'OTHER',
         garmentLabel: label,
         customName: detailCustomName || label,
+        stains: detailStains,
+        instructions: detailInstructions,
+        notes: detailNotes,
       } : item
     ));
     setDetailItem(null);
@@ -452,6 +467,20 @@ export default function NewOrderPage() {
                             <Tag className="w-2.5 h-2.5" /> {item.garmentLabel}
                           </div>
                         )}
+                        {(item.stains?.length > 0 || item.instructions?.length > 0) && (
+                          <div className="flex gap-0.5 flex-wrap mt-0.5">
+                            {item.stains?.length > 0 && (
+                              <span className="text-[9px] bg-red-50 text-red-600 px-1 rounded flex items-center gap-0.5">
+                                <Droplets className="w-2 h-2" />{item.stains.length} כתמים
+                              </span>
+                            )}
+                            {item.instructions?.length > 0 && (
+                              <span className="text-[9px] bg-amber-50 text-amber-600 px-1 rounded flex items-center gap-0.5">
+                                <AlertTriangle className="w-2 h-2" />{item.instructions.length} הוראות
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <button onClick={(e) => { e.stopPropagation(); removeFromCart(item.id); }}
                         className="p-0.5 text-gray-300 hover:text-red-500"><X className="w-3 h-3" /></button>
@@ -559,6 +588,58 @@ export default function NewOrderPage() {
                 <input type="text" value={detailCustomName} onChange={e => setDetailCustomName(e.target.value)}
                   placeholder="לדוגמה: חולצה כחולה..."
                   className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
+              </div>
+              {/* Stains */}
+              <div>
+                <label className="text-xs font-medium text-gray-700 mb-1.5 block flex items-center gap-1">
+                  <Droplets className="w-3 h-3 text-red-400" /> כתמים
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {STAIN_TYPES.map(stain => {
+                    const active = detailStains.includes(stain.value);
+                    return (
+                      <button key={stain.value}
+                        onClick={() => setDetailStains(prev =>
+                          active ? prev.filter(s => s !== stain.value) : [...prev, stain.value]
+                        )}
+                        className={`px-2 py-1 rounded-md text-[10px] font-medium border transition-colors ${
+                          active ? stain.color + ' border-current' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                        }`}>
+                        {stain.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              {/* Special Instructions */}
+              <div>
+                <label className="text-xs font-medium text-gray-700 mb-1.5 block flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3 text-amber-400" /> הוראות מיוחדות
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {SPECIAL_INSTRUCTIONS.map(inst => {
+                    const active = detailInstructions.includes(inst.value);
+                    return (
+                      <button key={inst.value}
+                        onClick={() => setDetailInstructions(prev =>
+                          active ? prev.filter(s => s !== inst.value) : [...prev, inst.value]
+                        )}
+                        className={`px-2 py-1 rounded-md text-[10px] font-medium border transition-colors ${
+                          active ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
+                        }`}>
+                        {inst.icon} {inst.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              {/* Notes */}
+              <div>
+                <label className="text-xs font-medium text-gray-700 mb-1 block">הערות</label>
+                <textarea value={detailNotes} onChange={e => setDetailNotes(e.target.value)}
+                  placeholder="הערות נוספות..."
+                  rows={2}
+                  className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 resize-none" />
               </div>
             </div>
             <div className="flex gap-2 px-5 py-3 border-t bg-gray-50">

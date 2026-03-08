@@ -7,7 +7,7 @@ import {
   LayoutDashboard, ShoppingBag, Shirt, Cog, Users, Truck, Wallet,
   BarChart3, WashingMachine, ScanLine, Tags, Building2, Settings,
   BookOpen, LogOut, Menu, X, ChevronDown, ChevronLeft, Search, Command,
-  Upload,
+  Upload, Award, Percent, TrendingUp, QrCode,
 } from 'lucide-react';
 
 const NAV_SECTIONS = [
@@ -17,6 +17,7 @@ const NAV_SECTIONS = [
       { path: '/', label: 'דשבורד', icon: LayoutDashboard },
       { path: '/orders', label: 'הזמנות', icon: ShoppingBag },
       { path: '/orders/new', label: 'הזמנה חדשה', icon: Shirt },
+      { path: '/scan', label: 'סורק', icon: QrCode },
     ],
   },
   {
@@ -30,11 +31,19 @@ const NAV_SECTIONS = [
     ],
   },
   {
+    title: 'שיווק',
+    items: [
+      { path: '/loyalty', label: 'מועדון לקוחות', icon: Award },
+      { path: '/promotions', label: 'מבצעים', icon: Percent },
+    ],
+  },
+  {
     title: 'הנהלת חשבונות',
     items: [
       { path: '/accounting', label: 'חשבונאות', icon: BookOpen },
       { path: '/invoices', label: 'חשבוניות', icon: BarChart3 },
       { path: '/inventory', label: 'מלאי', icon: ScanLine },
+      { path: '/reports', label: 'דוחות', icon: TrendingUp },
     ],
   },
   {

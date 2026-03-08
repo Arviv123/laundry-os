@@ -157,3 +157,40 @@ export const GARMENT_SUB_TYPES: Record<string, { value: string; label: string }[
     { value: 'CUSTOM', label: 'פריט מותאם' },
   ],
 };
+
+// Stain types for damage/inspection
+export const STAIN_TYPES = [
+  { value: 'BLOOD', label: 'דם', color: 'bg-red-100 text-red-700' },
+  { value: 'OIL', label: 'שמן/שומן', color: 'bg-yellow-100 text-yellow-700' },
+  { value: 'WINE', label: 'יין', color: 'bg-purple-100 text-purple-700' },
+  { value: 'INK', label: 'דיו', color: 'bg-blue-100 text-blue-700' },
+  { value: 'COFFEE', label: 'קפה/תה', color: 'bg-amber-100 text-amber-700' },
+  { value: 'GRASS', label: 'דשא', color: 'bg-green-100 text-green-700' },
+  { value: 'RUST', label: 'חלודה', color: 'bg-orange-100 text-orange-700' },
+  { value: 'MAKEUP', label: 'איפור', color: 'bg-pink-100 text-pink-700' },
+  { value: 'FOOD', label: 'מזון', color: 'bg-lime-100 text-lime-700' },
+  { value: 'OTHER', label: 'אחר', color: 'bg-gray-100 text-gray-700' },
+];
+
+// Special handling instructions
+export const SPECIAL_INSTRUCTIONS = [
+  { value: 'DELICATE', label: 'עדין', icon: '🧶' },
+  { value: 'HAND_WASH', label: 'כביסת יד', icon: '🤲' },
+  { value: 'NO_BLEACH', label: 'ללא אקונומיקה', icon: '🚫' },
+  { value: 'LOW_TEMP', label: 'טמפרטורה נמוכה', icon: '❄️' },
+  { value: 'NO_DRYER', label: 'ללא מייבש', icon: '🌬️' },
+  { value: 'HANG_DRY', label: 'ייבוש תלוי', icon: '👔' },
+  { value: 'STEAM_ONLY', label: 'אידוי בלבד', icon: '♨️' },
+  { value: 'STARCH', label: 'עמילן', icon: '✨' },
+  { value: 'FOLD', label: 'קיפול', icon: '📦' },
+  { value: 'HANGER', label: 'על קולב', icon: '🪝' },
+];
+
+// Payment method labels
+export const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  CASH: 'מזומן',
+  CREDIT: 'אשראי',
+  TRANSFER: 'העברה',
+  PREPAID: 'מקדמה',
+  GIFT_CARD: 'כרטיס מתנה',
+};
