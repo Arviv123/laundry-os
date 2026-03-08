@@ -1,5 +1,5 @@
 /**
- * Delivery Routes — ראוטים למשלוחים
+ * Delivery Routes — ראוטים למשלוחים (נהגים + אדמין)
  */
 import { Router, Response } from 'express';
 import { z } from 'zod';
@@ -10,6 +10,11 @@ import { sendSuccess, sendError } from '../../shared/utils/response';
 import { asyncHandler } from '../../shared/utils/asyncHandler';
 import { prisma } from '../../config/database';
 import { createDeliveryRun, completeStop, getPendingDeliveries } from './delivery.service';
+import {
+  notifyCustomerNavigating,
+  notifyCustomerPickedUp,
+  notifyCustomerDelivered,
+} from '../delivery-mgmt/delivery-notifications';
 
 const router = Router();
 router.use(authenticate as any);
@@ -24,6 +29,13 @@ const CreateRunSchema = z.object({
     address: z.record(z.any()),
     scheduledTime: z.string().datetime().optional(),
     notes: z.string().optional(),
+    sortOrder: z.number().int().min(0),
+  })).min(1),
+});
+
+const ReorderSchema = z.object({
+  stops: z.array(z.object({
+    stopId: z.string().min(1),
     sortOrder: z.number().int().min(0),
   })).min(1),
 });
@@ -52,7 +64,10 @@ router.get('/runs', asyncHandler(async (req: AuthenticatedRequest, res: Response
 
   const runs = await prisma.deliveryRun.findMany({
     where,
-    include: { stops: { include: { order: { include: { customer: true } } } }, driver: true },
+    include: {
+      stops: { orderBy: { sortOrder: 'asc' }, include: { order: { include: { customer: true } } } },
+      driver: true,
+    },
     orderBy: { date: 'desc' },
   });
   sendSuccess(res, runs);
@@ -63,9 +78,15 @@ router.get('/runs', asyncHandler(async (req: AuthenticatedRequest, res: Response
 router.get('/runs/:id', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const run = await prisma.deliveryRun.findFirst({
     where: { id: req.params.id, tenantId: req.user.tenantId },
-    include: { stops: { include: { order: { include: { customer: true, items: true } } } }, driver: true },
+    include: {
+      stops: {
+        orderBy: { sortOrder: 'asc' },
+        include: { order: { include: { customer: true, items: true } } },
+      },
+      driver: true,
+    },
   });
-  if (!run) return sendError(res, 'משלוח לא נמצא', 404);
+  if (!run) return sendError(res, 'סיבוב לא נמצא', 404);
   sendSuccess(res, run);
 }));
 
@@ -91,17 +112,176 @@ router.patch('/runs/:id/start', asyncHandler(async (req: AuthenticatedRequest, r
   const run = await prisma.deliveryRun.update({
     where: { id: req.params.id },
     data: { status: 'IN_PROGRESS', startedAt: new Date() },
+    include: { stops: { orderBy: { sortOrder: 'asc' } } },
+  });
+  sendSuccess(res, run);
+}));
+
+// ─── Reorder Stops ───────────────────────────────────────────────
+
+router.patch('/runs/:id/reorder', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { stops } = ReorderSchema.parse(req.body);
+
+  const run = await prisma.deliveryRun.findFirst({
+    where: { id: req.params.id, tenantId: req.user.tenantId },
+  });
+  if (!run) return sendError(res, 'סיבוב לא נמצא', 404);
+
+  // If locked, only ADMIN/MANAGER can reorder
+  if (run.isLocked && !['ADMIN', 'MANAGER', 'TENANT_ADMIN'].includes(req.user.role)) {
+    return sendError(res, 'הסיבוב נעול — רק מנהל יכול לשנות סדר', 403);
+  }
+
+  await prisma.$transaction(
+    stops.map(s =>
+      prisma.deliveryStop.update({
+        where: { id: s.stopId },
+        data: { sortOrder: s.sortOrder },
+      })
+    )
+  );
+
+  const updated = await prisma.deliveryRun.findFirst({
+    where: { id: req.params.id },
+    include: {
+      stops: { orderBy: { sortOrder: 'asc' }, include: { order: { include: { customer: true } } } },
+      driver: true,
+    },
+  });
+  sendSuccess(res, updated);
+}));
+
+// ─── Lock Run ────────────────────────────────────────────────────
+
+router.patch('/runs/:id/lock', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!['ADMIN', 'MANAGER', 'TENANT_ADMIN'].includes(req.user.role)) {
+    return sendError(res, 'רק מנהל יכול לנעול סיבוב', 403);
+  }
+  const run = await prisma.deliveryRun.update({
+    where: { id: req.params.id },
+    data: { isLocked: true },
+  });
+  sendSuccess(res, run);
+}));
+
+// ─── Unlock Run ──────────────────────────────────────────────────
+
+router.patch('/runs/:id/unlock', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  if (!['ADMIN', 'MANAGER', 'TENANT_ADMIN'].includes(req.user.role)) {
+    return sendError(res, 'רק מנהל יכול לפתוח סיבוב', 403);
+  }
+  const run = await prisma.deliveryRun.update({
+    where: { id: req.params.id },
+    data: { isLocked: false },
+  });
+  sendSuccess(res, run);
+}));
+
+// ─── Navigate to Stop (sends WhatsApp) ──────────────────────────
+
+router.post('/runs/:id/stops/:stopId/navigate', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const stop = await prisma.deliveryStop.findFirst({
+    where: { id: req.params.stopId, deliveryRunId: req.params.id },
+    include: { order: { include: { customer: true } }, deliveryRun: { include: { driver: true } } },
+  });
+  if (!stop) return sendError(res, 'עצירה לא נמצאה', 404);
+
+  const addr = stop.address as any;
+  const addressStr = [addr?.street, addr?.city].filter(Boolean).join(', ');
+  const wazeUrl = `https://waze.com/ul?q=${encodeURIComponent(addressStr)}&navigate=yes`;
+
+  const driverName = [stop.deliveryRun.driver?.firstName, stop.deliveryRun.driver?.lastName].filter(Boolean).join(' ') || 'השליח';
+  await notifyCustomerNavigating(stop.deliveryRun.tenantId, stop.orderId, driverName);
+
+  sendSuccess(res, { wazeUrl, addressStr });
+}));
+
+// ─── Arrive at Stop ──────────────────────────────────────────────
+
+router.patch('/runs/:id/stops/:stopId/arrive', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const stop = await prisma.deliveryStop.update({
+    where: { id: req.params.stopId },
+    data: { status: 'ARRIVED' },
+    include: { order: { include: { customer: true } } },
+  });
+  sendSuccess(res, stop);
+}));
+
+// ─── Complete Stop (with WhatsApp notifications) ─────────────────
+
+router.patch('/runs/:id/stops/:stopId', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { signature, notes, status: reqStatus } = req.body;
+
+  if (reqStatus === 'FAILED') {
+    const stop = await prisma.deliveryStop.update({
+      where: { id: req.params.stopId },
+      data: { status: 'FAILED', notes },
+      include: { order: true },
+    });
+    return sendSuccess(res, stop);
+  }
+
+  // Check if customer requires signature
+  const existingStop = await prisma.deliveryStop.findFirst({
+    where: { id: req.params.stopId },
+    include: { order: { include: { customer: true } } },
+  });
+  if (!existingStop) return sendError(res, 'עצירה לא נמצאה', 404);
+
+  const metadata = (existingStop.order.customer?.metadata as any) || {};
+  if (metadata.requireSignature && !signature) {
+    return sendError(res, 'חתימה נדרשת עבור לקוח זה', 400);
+  }
+
+  const stop = await completeStop(req.params.stopId, signature, notes);
+
+  // Send WhatsApp notification
+  try {
+    const run = await prisma.deliveryRun.findFirst({ where: { id: req.params.id } });
+    if (run) {
+      if (stop.type === 'PICKUP_STOP') {
+        await notifyCustomerPickedUp(run.tenantId, stop.orderId);
+      } else if (stop.type === 'DELIVERY_STOP') {
+        await notifyCustomerDelivered(run.tenantId, stop.orderId);
+      }
+    }
+  } catch {
+    // Don't fail stop completion if notification fails
+  }
+
+  sendSuccess(res, stop);
+}));
+
+// ─── Complete Run ────────────────────────────────────────────────
+
+router.patch('/runs/:id/complete', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const run = await prisma.deliveryRun.update({
+    where: { id: req.params.id },
+    data: { status: 'COMPLETED_RUN', completedAt: new Date() },
     include: { stops: true },
   });
   sendSuccess(res, run);
 }));
 
-// ─── Complete Stop ───────────────────────────────────────────────
+// ─── Scan Barcode in Run ─────────────────────────────────────────
 
-router.patch('/runs/:id/stops/:stopId', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const { signature, notes } = req.body;
-  const stop = await completeStop(req.params.stopId, signature, notes);
-  sendSuccess(res, stop);
+router.post('/runs/:id/scan', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { barcode } = req.body;
+  if (!barcode) return sendError(res, 'ברקוד חובה', 400);
+
+  const item = await prisma.laundryOrderItem.findFirst({
+    where: { barcode, order: { tenantId: req.user.tenantId } },
+    include: { order: { include: { customer: true } } },
+  });
+  if (!item) return sendError(res, 'פריט לא נמצא', 404);
+
+  const stop = await prisma.deliveryStop.findFirst({
+    where: { deliveryRunId: req.params.id, orderId: item.orderId },
+    include: { order: { include: { customer: true } } },
+  });
+  if (!stop) return sendError(res, 'לא נמצאה עצירה מתאימה בסיבוב זה', 404);
+
+  sendSuccess(res, { stop, order: item.order, item });
 }));
 
 export default router;

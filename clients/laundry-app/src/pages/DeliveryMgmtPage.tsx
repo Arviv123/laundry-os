@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../contexts/ToastContext';
 import api from '../lib/api';
+import { useNavigate } from 'react-router-dom';
 import {
   Truck, Package, MapPin, Plus, X, User, Clock, CheckCircle,
-  Loader2, AlertTriangle, Zap, ChevronLeft, PenTool,
+  Loader2, AlertTriangle, Zap, ChevronLeft, PenTool, Lock, Unlock,
+  Route, Eye,
 } from 'lucide-react';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -20,10 +22,13 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function DeliveryMgmtPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { addToast } = useToast();
   const [showCreate, setShowCreate] = useState(false);
+  const [showCreateRun, setShowCreateRun] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'assignments' | 'runs'>('assignments');
 
   // Fetch assignments
   const { data: assignments = [], isLoading } = useQuery({
@@ -100,6 +105,33 @@ export default function DeliveryMgmtPage() {
     onError: () => addToast('שגיאה בשמירת חתימה', 'error'),
   });
 
+  // ─── Runs ──────────────────────────────────────────────────
+  const { data: runs = [] } = useQuery({
+    queryKey: ['delivery-runs-mgmt'],
+    queryFn: () => api.get('/delivery/runs').then(r => r.data.data),
+    refetchInterval: 15_000,
+  });
+
+  const createRunMutation = useMutation({
+    mutationFn: (data: any) => api.post('/delivery/runs', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['delivery-runs-mgmt'] });
+      setShowCreateRun(false);
+      addToast('סיבוב נוצר בהצלחה');
+    },
+    onError: () => addToast('שגיאה ביצירת סיבוב', 'error'),
+  });
+
+  const lockMutation = useMutation({
+    mutationFn: ({ id, lock }: { id: string; lock: boolean }) =>
+      api.patch(`/delivery/runs/${id}/${lock ? 'lock' : 'unlock'}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['delivery-runs-mgmt'] });
+      addToast('סטטוס נעילה עודכן');
+    },
+    onError: () => addToast('שגיאה בעדכון נעילה', 'error'),
+  });
+
   const pickups = assignments.filter((a: any) => a.type === 'PICKUP' && a.status !== 'COMPLETED');
   const deliveriesActive = assignments.filter((a: any) => a.type === 'DELIVERY' && a.status !== 'COMPLETED');
   const completed = assignments.filter((a: any) => a.status === 'COMPLETED');
@@ -131,19 +163,42 @@ export default function DeliveryMgmtPage() {
           <Truck className="w-7 h-7 text-blue-600" /> ניהול משלוחים
         </h1>
         <div className="flex items-center gap-3">
-          <button onClick={() => autoAssignMutation.mutate()} disabled={autoAssignMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium disabled:opacity-50">
-            {autoAssignMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-            הקצאה אוטומטית
-          </button>
-          <button onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
-            <Plus className="w-4 h-4" /> הקצאה חדשה
-          </button>
+          {activeTab === 'assignments' && (
+            <>
+              <button onClick={() => autoAssignMutation.mutate()} disabled={autoAssignMutation.isPending}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium disabled:opacity-50">
+                {autoAssignMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                הקצאה אוטומטית
+              </button>
+              <button onClick={() => setShowCreate(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
+                <Plus className="w-4 h-4" /> הקצאה חדשה
+              </button>
+            </>
+          )}
+          {activeTab === 'runs' && (
+            <button onClick={() => setShowCreateRun(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">
+              <Plus className="w-4 h-4" /> צור סיבוב
+            </button>
+          )}
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5 max-w-xs">
+        <button onClick={() => setActiveTab('assignments')}
+          className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            activeTab === 'assignments' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500'
+          }`}>הקצאות</button>
+        <button onClick={() => setActiveTab('runs')}
+          className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            activeTab === 'runs' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500'
+          }`}>סיבובים ({runs.length})</button>
+      </div>
+
       {/* Stats */}
+      {activeTab === 'assignments' && <>
       <div className="flex gap-4 text-sm flex-wrap">
         <div className="flex items-center gap-1.5 bg-orange-50 border border-orange-200 px-3 py-1.5 rounded-lg">
           <Package className="w-4 h-4 text-orange-500" />
@@ -218,6 +273,118 @@ export default function DeliveryMgmtPage() {
             </div>
           </div>
         </div>
+      )}
+      </>}
+
+      {/* Runs Tab */}
+      {activeTab === 'runs' && (
+        <div className="space-y-4">
+          {runs.length === 0 ? (
+            <div className="text-center py-16 text-gray-400">
+              <Route className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">אין סיבובים. צור סיבוב חדש כדי להתחיל.</p>
+            </div>
+          ) : (
+            runs.map((run: any) => {
+              const completedStops = run.stops?.filter((s: any) => s.status === 'STOP_COMPLETED').length ?? 0;
+              const totalStops = run.stops?.length ?? 0;
+              const progress = totalStops > 0 ? Math.round((completedStops / totalStops) * 100) : 0;
+              const driverName = run.driver ? `${run.driver.firstName} ${run.driver.lastName}` : 'לא מוקצה';
+              return (
+                <div key={run.id} className="bg-white rounded-xl shadow-sm border p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                        run.status === 'COMPLETED_RUN' ? 'bg-green-100' :
+                        run.status === 'IN_PROGRESS' ? 'bg-blue-100' : 'bg-gray-100'
+                      }`}>
+                        <Truck className={`w-5 h-5 ${
+                          run.status === 'COMPLETED_RUN' ? 'text-green-600' :
+                          run.status === 'IN_PROGRESS' ? 'text-blue-600' : 'text-gray-500'
+                        }`} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-800">{driverName}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            run.status === 'COMPLETED_RUN' ? 'bg-green-100 text-green-700' :
+                            run.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>
+                            {run.status === 'COMPLETED_RUN' ? 'הושלם' : run.status === 'IN_PROGRESS' ? 'בדרך' : 'מתוכנן'}
+                          </span>
+                        </div>
+                        <span className="text-xs text-gray-400">{new Date(run.date).toLocaleDateString('he-IL')}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {/* Lock toggle */}
+                      <button
+                        onClick={() => lockMutation.mutate({ id: run.id, lock: !run.isLocked })}
+                        disabled={lockMutation.isPending}
+                        title={run.isLocked ? 'פתח לעריכה' : 'נעל סיבוב'}
+                        className={`p-2 rounded-lg transition-colors ${
+                          run.isLocked
+                            ? 'bg-orange-100 text-orange-600 hover:bg-orange-200'
+                            : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                        }`}
+                      >
+                        {run.isLocked ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                      </button>
+                      {/* View run */}
+                      <button
+                        onClick={() => navigate(`/delivery/run/${run.id}`)}
+                        className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"
+                        title="צפה בסיבוב"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Progress */}
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="flex-1 bg-gray-200 rounded-full h-2">
+                      <div
+                        className={`h-2 rounded-full transition-all duration-500 ${
+                          progress === 100 ? 'bg-green-500' : 'bg-blue-500'
+                        }`}
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                    <span className="text-sm font-bold text-gray-600">{completedStops}/{totalStops}</span>
+                  </div>
+
+                  {/* Stops summary */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {(run.stops || []).map((stop: any, i: number) => (
+                      <div key={stop.id} title={`${stop.order?.customer?.name || 'לקוח'} - ${stop.status}`}
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold ${
+                          stop.status === 'STOP_COMPLETED' ? 'bg-green-100 text-green-700' :
+                          stop.status === 'ARRIVED' ? 'bg-blue-100 text-blue-700' :
+                          stop.status === 'FAILED' ? 'bg-red-100 text-red-700' :
+                          'bg-gray-100 text-gray-500'
+                        }`}>
+                        {i + 1}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {/* Create Run Modal */}
+      {showCreateRun && (
+        <CreateRunModal
+          drivers={drivers}
+          orders={pendingOrders}
+          onClose={() => setShowCreateRun(false)}
+          onSubmit={(data) => createRunMutation.mutate(data)}
+          isSubmitting={createRunMutation.isPending}
+        />
       )}
 
       {/* Create Assignment Modal */}
@@ -399,6 +566,117 @@ function CreateAssignmentModal({ drivers, orders, onClose, onSubmit, isSubmittin
               className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
               {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
               צור הקצאה
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function CreateRunModal({ drivers, orders, onClose, onSubmit, isSubmitting }: {
+  drivers: any[]; orders: any[]; onClose: () => void; onSubmit: (data: any) => void; isSubmitting: boolean;
+}) {
+  const [driverId, setDriverId] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+  const ordersList = Array.isArray(orders) ? (orders as any).orders || orders : [];
+
+  const toggleOrder = (orderId: string) => {
+    setSelectedOrders(prev =>
+      prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId]
+    );
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const stops = selectedOrders.map((orderId, i) => {
+      const order = ordersList.find((o: any) => o.id === orderId);
+      const addr = order?.deliveryAddress || {};
+      return {
+        orderId,
+        type: order?.status === 'RECEIVED' ? 'PICKUP_STOP' as const : 'DELIVERY_STOP' as const,
+        address: typeof addr === 'string' ? { street: addr } : addr,
+        sortOrder: i,
+      };
+    });
+    onSubmit({
+      driverId,
+      date: new Date(date).toISOString(),
+      stops,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between p-5 border-b">
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <Route className="w-5 h-5 text-blue-600" /> צור סיבוב חדש
+          </h2>
+          <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">נהג *</label>
+              <select value={driverId} onChange={e => setDriverId(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" required>
+                <option value="">בחר נהג</option>
+                {drivers.map((d: any) => (
+                  <option key={d.id} value={d.id}>{d.firstName} {d.lastName}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">תאריך *</label>
+              <input type="date" value={date} onChange={e => setDate(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" required />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              בחר הזמנות ({selectedOrders.length} נבחרו)
+            </label>
+            <div className="border border-gray-200 rounded-xl max-h-48 overflow-y-auto">
+              {ordersList.length === 0 ? (
+                <p className="text-center py-4 text-gray-400 text-sm">אין הזמנות ממתינות</p>
+              ) : (
+                ordersList.map((order: any) => (
+                  <label key={order.id}
+                    className={`flex items-center gap-3 px-4 py-3 border-b border-gray-100 last:border-0 cursor-pointer hover:bg-gray-50 ${
+                      selectedOrders.includes(order.id) ? 'bg-blue-50' : ''
+                    }`}>
+                    <input type="checkbox" checked={selectedOrders.includes(order.id)}
+                      onChange={() => toggleOrder(order.id)}
+                      className="rounded border-gray-300 text-blue-600" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs text-blue-600">{order.orderNumber}</span>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] ${
+                          order.status === 'RECEIVED' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'
+                        }`}>
+                          {order.status === 'RECEIVED' ? 'איסוף' : 'משלוח'}
+                        </span>
+                      </div>
+                      <span className="text-sm text-gray-600 truncate block">{order.customer?.name}</span>
+                    </div>
+                  </label>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">ביטול</button>
+            <button type="submit" disabled={isSubmitting || selectedOrders.length === 0 || !driverId}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+              {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+              צור סיבוב ({selectedOrders.length} עצירות)
             </button>
           </div>
         </form>

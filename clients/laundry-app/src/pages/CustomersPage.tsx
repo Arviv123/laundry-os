@@ -10,7 +10,7 @@ import {
   Users, Search, Phone, Mail, Plus, X, UserPlus,
   Upload, Wallet, ShoppingBag, ArrowRight,
   RefreshCw, Clock, CreditCard, Filter,
-  Building2, FileText, CheckCircle2,
+  Building2, FileText, CheckCircle2, PenTool,
 } from 'lucide-react';
 
 export default function CustomersPage() {
@@ -93,6 +93,17 @@ export default function CustomersPage() {
 
   const unbilledOrders = unbilledData?.orders ?? [];
   const unbilledTotal = unbilledData?.unbilledTotal ?? 0;
+
+  // Update customer metadata (requireSignature, etc.)
+  const updateMetadataMutation = useMutation({
+    mutationFn: ({ customerId, metadata }: { customerId: string; metadata: any }) =>
+      api.patch(`/crm/customers/${customerId}`, { metadata }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      addToast('הגדרת לקוח עודכנה');
+    },
+    onError: () => addToast('שגיאה בעדכון', 'error'),
+  });
 
   // Toggle institutional status
   const institutionalMutation = useMutation({
@@ -306,6 +317,21 @@ export default function CustomersPage() {
                   }`}>
                   <Building2 className="w-3.5 h-3.5" />
                   {selectedCustomer.isInstitutional ? 'לקוח מוסדי' : 'הפוך למוסדי'}
+                </button>
+                <button onClick={() => {
+                    const currentMeta = (selectedCustomer.metadata as any) || {};
+                    updateMetadataMutation.mutate({
+                      customerId: selectedCustomer.id,
+                      metadata: { ...currentMeta, requireSignature: !currentMeta.requireSignature },
+                    });
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm ${
+                    (selectedCustomer.metadata as any)?.requireSignature
+                      ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}>
+                  <PenTool className="w-3.5 h-3.5" />
+                  {(selectedCustomer.metadata as any)?.requireSignature ? 'חתימה נדרשת' : 'דרוש חתימה'}
                 </button>
               </div>
             </div>

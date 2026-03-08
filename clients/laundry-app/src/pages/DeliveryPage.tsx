@@ -136,8 +136,12 @@ export default function DeliveryPage() {
         <div className="space-y-3">
           {loadingRuns ? <p className="text-gray-400">טוען...</p> : (
             <>
-              {runsList.map((run: any) => (
-                <div key={run.id} className="bg-white rounded-xl shadow-sm border p-5">
+              {runsList.map((run: any) => {
+                const completedStops = run.stops?.filter((s: any) => s.status === 'STOP_COMPLETED').length ?? 0;
+                const totalStops = run.stops?.length ?? 0;
+                return (
+                <div key={run.id} onClick={() => navigate(`/delivery/run/${run.id}`)}
+                  className="bg-white rounded-xl shadow-sm border p-5 cursor-pointer hover:shadow-md transition-shadow">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center">
@@ -159,10 +163,19 @@ export default function DeliveryPage() {
                     </span>
                   </div>
                   <div className="flex items-center gap-4 text-sm text-gray-500">
-                    <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {run.stops?.length ?? 0} עצירות</span>
+                    <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {totalStops} עצירות</span>
+                    {totalStops > 0 && (
+                      <div className="flex items-center gap-2 flex-1">
+                        <div className="flex-1 bg-gray-200 rounded-full h-1.5 max-w-[120px]">
+                          <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${(completedStops / totalStops) * 100}%` }} />
+                        </div>
+                        <span className="text-xs">{completedStops}/{totalStops}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
               {runsList.length === 0 && (
                 <EmptyState icon={Truck} text="אין סבבי משלוח" />
               )}

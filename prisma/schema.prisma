@@ -4117,6 +4117,7 @@ model DeliveryRun {
   startedAt    DateTime?
   completedAt  DateTime?
   notes        String?
+  isLocked     Boolean          @default(false)  // Admin locks run — driver can't reorder
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
 

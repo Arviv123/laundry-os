@@ -34,6 +34,7 @@ import DeliveryMgmtPage from './pages/DeliveryMgmtPage';
 import PhoneDeliveryPage from './pages/PhoneDeliveryPage';
 import DriverDiaryPage from './pages/DriverDiaryPage';
 import QRLinksPage from './pages/QRLinksPage';
+import DriverRunPage from './pages/DriverRunPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, isLoading } = useAuth();
@@ -80,6 +81,7 @@ export default function App() {
         <Route path="phone-delivery" element={<PhoneDeliveryPage />} />
         <Route path="driver-diary" element={<DriverDiaryPage />} />
         <Route path="qr-links" element={<QRLinksPage />} />
+        <Route path="delivery/run/:runId" element={<DriverRunPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
