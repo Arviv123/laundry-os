@@ -10,11 +10,14 @@ import { logger } from '../../config/logger';
 // ─── Status State Machine ─────────────────────────────────────────────────────
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
-  RECEIVED:         ['PROCESSING', 'CANCELLED'],
-  PROCESSING:       ['WASHING', 'CANCELLED'],
-  WASHING:          ['DRYING'],
-  DRYING:           ['IRONING'],
-  IRONING:          ['READY'],
+  RECEIVED:         ['PROCESSING', 'PENDING_PICKUP', 'PACKAGING', 'CANCELLED'],
+  PENDING_PICKUP:   ['PICKED_UP', 'PROCESSING', 'CANCELLED'],
+  PICKED_UP:        ['PROCESSING', 'CANCELLED'],
+  PROCESSING:       ['WASHING', 'PACKAGING', 'READY', 'CANCELLED'],
+  WASHING:          ['DRYING', 'PROCESSING'],
+  DRYING:           ['IRONING', 'PROCESSING'],
+  IRONING:          ['PACKAGING', 'READY', 'PROCESSING'],
+  PACKAGING:        ['READY'],
   READY:            ['OUT_FOR_DELIVERY', 'DELIVERED'],
   OUT_FOR_DELIVERY: ['DELIVERED'],
   DELIVERED:        [],

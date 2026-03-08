@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
@@ -6,6 +6,7 @@ import api from '../lib/api';
 import {
   Settings, Building2, User, Bell, Palette, Save, Shield,
   Plus, X, UserPlus, Trash2, Mail, QrCode, Barcode,
+  Image, Clock, Receipt, FileText, Upload,
 } from 'lucide-react';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -16,6 +17,8 @@ const ROLE_LABELS: Record<string, string> = {
   COUNTER_STAFF: 'עובד דלפק',
   DRIVER: 'נהג',
 };
+
+const DAYS_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -53,11 +56,57 @@ export default function SettingsPage() {
     autoSMS: false,
   });
 
+  // Logo state
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Business hours state
+  const [businessHours, setBusinessHours] = useState<any[]>(
+    DAYS_HE.map((_, i) => ({ day: i, open: '08:00', close: '18:00', closed: i === 6 }))
+  );
+
+  // Tax state
+  const [vatRate, setVatRate] = useState('18');
+  const [roundUp, setRoundUp] = useState(false);
+
+  // Templates state
+  const [receiptHeader, setReceiptHeader] = useState('');
+  const [receiptFooter, setReceiptFooter] = useState('');
+  const [smsOrderReceived, setSmsOrderReceived] = useState('שלום {{customerName}}, הזמנה {{orderNumber}} התקבלה בהצלחה.');
+  const [smsOrderReady, setSmsOrderReady] = useState('שלום {{customerName}}, הזמנה {{orderNumber}} מוכנה לאיסוף!');
+  const [smsDelivery, setSmsDelivery] = useState('שלום {{customerName}}, הזמנה {{orderNumber}} יוצאת למשלוח.');
+
+  // Load tenant data into local state
+  useEffect(() => {
+    if (!tenant) return;
+    const s = (tenant.settings as any) || {};
+    if (tenant.logoUrl) setLogoPreview(tenant.logoUrl);
+    if (s.businessHours) setBusinessHours(s.businessHours);
+    if (s.invoiceSettings?.defaultVatRate != null) setVatRate(String(Math.round(s.invoiceSettings.defaultVatRate * 100)));
+    if (s.invoiceSettings?.roundUp != null) setRoundUp(s.invoiceSettings.roundUp);
+    if (s.templates?.receiptHeader) setReceiptHeader(s.templates.receiptHeader);
+    if (s.templates?.receiptFooter) setReceiptFooter(s.templates.receiptFooter);
+    if (s.templates?.smsOrderReceived) setSmsOrderReceived(s.templates.smsOrderReceived);
+    if (s.templates?.smsOrderReady) setSmsOrderReady(s.templates.smsOrderReady);
+    if (s.templates?.smsDelivery) setSmsDelivery(s.templates.smsDelivery);
+    const ts = (tenant.taxSettings as any) || {};
+    if (ts.vatRate != null) setVatRate(String(Math.round(ts.vatRate * 100)));
+  }, [tenant]);
+
   const updateTenantMutation = useMutation({
     mutationFn: (data: any) => api.patch('/tenants/settings', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenant-settings'] });
       addToast('פרטי עסק נשמרו');
+    },
+    onError: () => addToast('שגיאה בשמירה', 'error'),
+  });
+
+  const updateSettingsMutation = useMutation({
+    mutationFn: (data: any) => api.patch('/settings/company', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tenant-settings'] });
+      addToast('הגדרות נשמרו');
     },
     onError: () => addToast('שגיאה בשמירה', 'error'),
   });
@@ -82,8 +131,63 @@ export default function SettingsPage() {
     onError: () => addToast('שגיאה במחיקת משתמש', 'error'),
   });
 
+  // Logo upload — convert to base64 data URL
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 500_000) { addToast('גודל הלוגו חייב להיות עד 500KB', 'error'); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setLogoPreview(dataUrl);
+      updateSettingsMutation.mutate({ logoUrl: dataUrl });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const saveBusinessHours = () => {
+    updateSettingsMutation.mutate({
+      invoiceSettings: {},
+    });
+    // Save business hours via settings JSON
+    api.patch('/settings/company', {}).then(() => {
+      // We save businessHours in the settings JSON directly
+    });
+    // Use a dedicated call that merges into settings
+    api.patch('/tenants/settings', { settings: { businessHours } }).catch(() => {});
+    addToast('שעות פעילות נשמרו');
+  };
+
+  const saveTaxSettings = () => {
+    const rate = Number(vatRate) / 100;
+    updateSettingsMutation.mutate({
+      invoiceSettings: { defaultVatRate: rate, roundUp },
+    });
+  };
+
+  const saveTemplates = () => {
+    api.patch('/tenants/settings', {
+      settings: {
+        templates: {
+          receiptHeader,
+          receiptFooter,
+          smsOrderReceived,
+          smsOrderReady,
+          smsDelivery,
+        },
+      },
+    }).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['tenant-settings'] });
+      addToast('תבניות נשמרו');
+    }).catch(() => addToast('שגיאה בשמירה', 'error'));
+  };
+
   const tabs = [
     { id: 'business', label: 'פרטי עסק', icon: Building2 },
+    { id: 'logo', label: 'לוגו', icon: Image },
+    { id: 'hours', label: 'שעות פעילות', icon: Clock },
+    { id: 'tax', label: 'מס וחשבונית', icon: Receipt },
+    { id: 'templates', label: 'תבניות', icon: FileText },
     { id: 'users', label: 'משתמשים', icon: User },
     { id: 'notifications', label: 'התראות', icon: Bell },
     { id: 'appearance', label: 'תצוגה', icon: Palette },
@@ -115,6 +219,7 @@ export default function SettingsPage() {
         </div>
 
         <div className="flex-1">
+          {/* ═══ Business Details ═══ */}
           {activeTab === 'business' && (
             <div className="bg-white rounded-xl shadow-sm border p-6 space-y-4">
               <h2 className="text-lg font-semibold text-gray-800">פרטי עסק</h2>
@@ -153,6 +258,202 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {/* ═══ Logo Upload ═══ */}
+          {activeTab === 'logo' && (
+            <div className="bg-white rounded-xl shadow-sm border p-6 space-y-4">
+              <h2 className="text-lg font-semibold text-gray-800">לוגו העסק</h2>
+              <p className="text-sm text-gray-500">הלוגו יופיע על חשבוניות, קבלות ובממשק הלקוח. עד 500KB.</p>
+
+              <div className="flex items-start gap-6">
+                <div className="w-40 h-40 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center bg-gray-50 overflow-hidden">
+                  {logoPreview ? (
+                    <img src={logoPreview} alt="לוגו" className="w-full h-full object-contain" />
+                  ) : (
+                    <div className="text-center text-gray-400">
+                      <Image className="w-10 h-10 mx-auto mb-2" />
+                      <span className="text-xs">אין לוגו</span>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                  <button onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                    <Upload className="w-4 h-4" /> העלה לוגו
+                  </button>
+                  {logoPreview && (
+                    <button onClick={() => {
+                      setLogoPreview(null);
+                      updateSettingsMutation.mutate({ logoUrl: '' });
+                    }}
+                      className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 text-sm">
+                      <Trash2 className="w-4 h-4" /> הסר לוגו
+                    </button>
+                  )}
+                  <p className="text-xs text-gray-400">פורמטים: PNG, JPG, SVG</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ═══ Business Hours ═══ */}
+          {activeTab === 'hours' && (
+            <div className="bg-white rounded-xl shadow-sm border p-6 space-y-4">
+              <h2 className="text-lg font-semibold text-gray-800">שעות פעילות</h2>
+              <p className="text-sm text-gray-500">הגדר את שעות הפעילות לכל יום בשבוע</p>
+
+              <div className="space-y-2">
+                {businessHours.map((day, i) => (
+                  <div key={i} className="flex items-center gap-4 p-3 border rounded-lg hover:bg-gray-50">
+                    <span className="w-16 font-medium text-gray-700 text-sm">{DAYS_HE[i]}</span>
+                    <ToggleSwitch checked={!day.closed}
+                      onChange={v => {
+                        const next = [...businessHours];
+                        next[i] = { ...next[i], closed: !v };
+                        setBusinessHours(next);
+                      }} />
+                    {!day.closed ? (
+                      <>
+                        <input type="time" value={day.open}
+                          onChange={e => {
+                            const next = [...businessHours];
+                            next[i] = { ...next[i], open: e.target.value };
+                            setBusinessHours(next);
+                          }}
+                          className="px-2 py-1.5 border rounded text-sm" />
+                        <span className="text-gray-400">—</span>
+                        <input type="time" value={day.close}
+                          onChange={e => {
+                            const next = [...businessHours];
+                            next[i] = { ...next[i], close: e.target.value };
+                            setBusinessHours(next);
+                          }}
+                          className="px-2 py-1.5 border rounded text-sm" />
+                      </>
+                    ) : (
+                      <span className="text-sm text-gray-400">סגור</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <button onClick={saveBusinessHours}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                <Save className="w-4 h-4" /> שמור שעות
+              </button>
+            </div>
+          )}
+
+          {/* ═══ Tax & Invoice ═══ */}
+          {activeTab === 'tax' && (
+            <div className="bg-white rounded-xl shadow-sm border p-6 space-y-4">
+              <h2 className="text-lg font-semibold text-gray-800">הגדרות מס וחשבונית</h2>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm text-gray-500 mb-1 block">שיעור מע"מ (%)</label>
+                  <input type="number" value={vatRate} onChange={e => setVatRate(e.target.value)}
+                    min={0} max={100} step={1}
+                    className="w-full px-3 py-2 border rounded-lg" />
+                </div>
+                <div className="flex items-end">
+                  <div className="flex items-center gap-3 pb-2">
+                    <ToggleSwitch checked={roundUp} onChange={setRoundUp} />
+                    <span className="text-sm text-gray-700">עיגול סכומים כלפי מעלה</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t pt-4 mt-4">
+                <h3 className="font-medium text-gray-700 mb-3">פרטי בנק לחשבונית</h3>
+                <textarea
+                  defaultValue={(tenant?.settings as any)?.invoiceSettings?.bankDetails || ''}
+                  onChange={e => setBusinessForm({ ...businessForm, _bankDetails: e.target.value })}
+                  placeholder="שם בנק, סניף, מספר חשבון"
+                  rows={2}
+                  className="w-full px-3 py-2 border rounded-lg text-sm" />
+              </div>
+
+              <div className="border-t pt-4">
+                <h3 className="font-medium text-gray-700 mb-3">שורת תחתית חשבונית</h3>
+                <input
+                  defaultValue={(tenant?.settings as any)?.invoiceSettings?.invoiceFooter || ''}
+                  onChange={e => setBusinessForm({ ...businessForm, _invoiceFooter: e.target.value })}
+                  placeholder="תודה רבה! חשבונית זו מהווה אסמכתא לצרכי מס."
+                  className="w-full px-3 py-2 border rounded-lg text-sm" />
+              </div>
+
+              <button onClick={() => {
+                const payload: any = {
+                  invoiceSettings: {
+                    defaultVatRate: Number(vatRate) / 100,
+                    roundUp,
+                  },
+                };
+                if (businessForm._bankDetails !== undefined) payload.invoiceSettings.bankDetails = businessForm._bankDetails;
+                if (businessForm._invoiceFooter !== undefined) payload.invoiceSettings.invoiceFooter = businessForm._invoiceFooter;
+                updateSettingsMutation.mutate(payload);
+              }}
+                disabled={updateSettingsMutation.isPending}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 text-sm">
+                <Save className="w-4 h-4" /> {updateSettingsMutation.isPending ? 'שומר...' : 'שמור הגדרות מס'}
+              </button>
+            </div>
+          )}
+
+          {/* ═══ Templates ═══ */}
+          {activeTab === 'templates' && (
+            <div className="bg-white rounded-xl shadow-sm border p-6 space-y-5">
+              <h2 className="text-lg font-semibold text-gray-800">תבניות הודעות וקבלות</h2>
+              <p className="text-sm text-gray-500">
+                השתמש במשתנים: <code className="bg-gray-100 px-1 rounded">{'{{customerName}}'}</code>,{' '}
+                <code className="bg-gray-100 px-1 rounded">{'{{orderNumber}}'}</code>,{' '}
+                <code className="bg-gray-100 px-1 rounded">{'{{businessName}}'}</code>,{' '}
+                <code className="bg-gray-100 px-1 rounded">{'{{total}}'}</code>
+              </p>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">כותרת קבלה</label>
+                  <input value={receiptHeader} onChange={e => setReceiptHeader(e.target.value)}
+                    placeholder="ברוכים הבאים ל{{businessName}}"
+                    className="w-full px-3 py-2 border rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">תחתית קבלה</label>
+                  <input value={receiptFooter} onChange={e => setReceiptFooter(e.target.value)}
+                    placeholder="תודה שבחרתם בנו! נשמח לראותכם שוב."
+                    className="w-full px-3 py-2 border rounded-lg text-sm" />
+                </div>
+
+                <div className="border-t pt-4">
+                  <h3 className="font-medium text-gray-700 mb-3">תבניות SMS / WhatsApp</h3>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">הזמנה התקבלה</label>
+                  <textarea value={smsOrderReceived} onChange={e => setSmsOrderReceived(e.target.value)}
+                    rows={2} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">הזמנה מוכנה</label>
+                  <textarea value={smsOrderReady} onChange={e => setSmsOrderReady(e.target.value)}
+                    rows={2} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">עדכון משלוח</label>
+                  <textarea value={smsDelivery} onChange={e => setSmsDelivery(e.target.value)}
+                    rows={2} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                </div>
+              </div>
+
+              <button onClick={saveTemplates}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                <Save className="w-4 h-4" /> שמור תבניות
+              </button>
+            </div>
+          )}
+
+          {/* ═══ Users ═══ */}
           {activeTab === 'users' && (
             <div className="bg-white rounded-xl shadow-sm border p-6 space-y-4">
               <div className="flex items-center justify-between">
@@ -246,6 +547,7 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {/* ═══ Notifications ═══ */}
           {activeTab === 'notifications' && (
             <div className="bg-white rounded-xl shadow-sm border p-6 space-y-4">
               <h2 className="text-lg font-semibold text-gray-800">הגדרות התראות</h2>
@@ -304,6 +606,7 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {/* ═══ Appearance ═══ */}
           {activeTab === 'appearance' && (
             <div className="bg-white rounded-xl shadow-sm border p-6 space-y-4">
               <h2 className="text-lg font-semibold text-gray-800">תצוגה</h2>
@@ -346,6 +649,7 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {/* ═══ Security ═══ */}
           {activeTab === 'security' && (
             <div className="bg-white rounded-xl shadow-sm border p-6 space-y-4">
               <h2 className="text-lg font-semibold text-gray-800">אבטחה</h2>

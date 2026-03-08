@@ -3,36 +3,26 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../contexts/ToastContext';
 import {
-  ITEM_STATUS_FLOW, ITEM_STATUS_LABELS, ITEM_STATUS_COLORS, ITEM_STATUS_ICONS, ITEM_NEXT_STATUS,
+  ORDER_BOARD_COLUMNS, STATUS_LABELS, STATUS_COLORS, ORDER_STATUS_ICONS, NEXT_STATUS,
 } from '../lib/constants';
 import api from '../lib/api';
 import {
-  ScanLine, Keyboard, X, ChevronDown, ChevronUp, User,
-  ShoppingBag, CheckCircle, AlertTriangle, Zap, Package,
+  ScanLine, Keyboard, ChevronDown, ChevronUp, User,
+  ShoppingBag, CheckCircle, AlertTriangle, Zap, Package, Clock, Phone,
 } from 'lucide-react';
 
-interface OrderItem {
+interface Order {
   id: string;
-  orderId: string;
-  barcode: string;
-  description: string;
+  orderNumber: string;
   status: string;
-  quantity: number;
-  garmentType?: string;
-  specialNotes?: string;
-  service?: { name: string };
-  order?: {
-    id: string;
-    orderNumber: string;
-    status: string;
-    priority: string;
-    customer?: { name: string; phone?: string };
-    items?: OrderItem[];
-  };
+  priority: string;
+  totalAmount: number;
+  createdAt: string;
+  customer?: { name: string; phone?: string };
+  items?: { id: string; description: string; status: string }[];
+  deliveryType?: string;
+  notes?: string;
 }
-
-// Columns to show on the board (skip ITEM_DELIVERED to keep board focused)
-const BOARD_COLUMNS = ['ITEM_RECEIVED', 'SORTING', 'IN_WASH', 'IN_DRY', 'IN_IRON', 'FOLDING', 'PACKED'];
 
 export default function WorkboardPage() {
   const navigate = useNavigate();
@@ -50,10 +40,10 @@ export default function WorkboardPage() {
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
   // Drag state
-  const [dragItem, setDragItem] = useState<OrderItem | null>(null);
+  const [dragOrder, setDragOrder] = useState<Order | null>(null);
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
 
-  // Fetch all active orders with items
+  // Fetch all active orders
   const { data: ordersData, isLoading } = useQuery({
     queryKey: ['workboard-orders'],
     queryFn: async () => {
@@ -63,75 +53,53 @@ export default function WorkboardPage() {
     refetchInterval: 15_000,
   });
 
-  const orders = ordersData?.orders ?? [];
+  const orders: Order[] = ordersData?.orders ?? [];
 
-  // Flatten all items with their parent order info
-  const allItems: OrderItem[] = [];
-  orders.forEach((order: any) => {
-    (order.items ?? []).forEach((item: any) => {
-      allItems.push({
-        ...item,
-        order: {
-          id: order.id,
-          orderNumber: order.orderNumber,
-          status: order.status,
-          priority: order.priority,
-          customer: order.customer,
-          items: order.items,
-        },
-      });
-    });
-  });
-
-  // Group by item status
-  const columnItems: Record<string, OrderItem[]> = {};
-  BOARD_COLUMNS.forEach(col => { columnItems[col] = []; });
-  allItems.forEach(item => {
-    const status = item.status || 'ITEM_RECEIVED';
-    if (columnItems[status]) {
-      columnItems[status].push(item);
+  // Group by order status
+  const columnOrders: Record<string, Order[]> = {};
+  ORDER_BOARD_COLUMNS.forEach(col => { columnOrders[col] = []; });
+  orders.forEach(order => {
+    const status = order.status || 'RECEIVED';
+    // Map legacy statuses to board columns
+    let col = status;
+    if (['WASHING', 'DRYING', 'IRONING'].includes(status)) col = 'PROCESSING';
+    if (status === 'PICKED_UP') col = 'PROCESSING';
+    if (columnOrders[col]) {
+      columnOrders[col].push(order);
+    } else if (status !== 'CANCELLED') {
+      columnOrders['RECEIVED']?.push(order);
     }
   });
 
   // Status mutation
   const statusMutation = useMutation({
-    mutationFn: ({ orderId, itemId, status }: { orderId: string; itemId: string; status: string }) =>
-      api.patch(`/orders/${orderId}/items/${itemId}/status`, { status }),
+    mutationFn: ({ orderId, status }: { orderId: string; status: string }) =>
+      api.patch(`/orders/${orderId}/status`, { status }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['workboard-orders'] });
     },
-    onError: () => addToast('שגיאה בעדכון סטטוס פריט', 'error'),
+    onError: () => addToast('שגיאה בעדכון סטטוס', 'error'),
   });
 
-  // Advance item to next status
-  const advanceItem = useCallback((item: OrderItem) => {
-    const nextStatus = ITEM_NEXT_STATUS[item.status];
+  // Advance order to next status
+  const advanceOrder = useCallback((order: Order) => {
+    const nextStatus = NEXT_STATUS[order.status];
     if (!nextStatus) return;
-    statusMutation.mutate({
-      orderId: item.orderId,
-      itemId: item.id,
-      status: nextStatus,
-    });
-    addToast(`${item.description} → ${ITEM_STATUS_LABELS[nextStatus]}`);
+    statusMutation.mutate({ orderId: order.id, status: nextStatus });
+    addToast(`${order.orderNumber} → ${STATUS_LABELS[nextStatus]}`);
   }, [statusMutation, addToast]);
 
-  // Move item to specific status
-  const moveItem = useCallback((item: OrderItem, newStatus: string) => {
-    if (item.status === newStatus) return;
-    statusMutation.mutate({
-      orderId: item.orderId,
-      itemId: item.id,
-      status: newStatus,
-    });
-    addToast(`${item.description} → ${ITEM_STATUS_LABELS[newStatus]}`);
+  // Move order to specific status
+  const moveOrder = useCallback((order: Order, newStatus: string) => {
+    if (order.status === newStatus) return;
+    statusMutation.mutate({ orderId: order.id, status: newStatus });
+    addToast(`${order.orderNumber} → ${STATUS_LABELS[newStatus]}`);
   }, [statusMutation, addToast]);
 
-  // Barcode scan handler (USB scanner sends rapid keystrokes + Enter)
+  // Barcode scan handler
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      // Ignore if focus is in manual input
       if (document.activeElement === manualInputRef.current) return;
-
       if (e.key === 'Enter' && scanBuffer.length >= 3) {
         handleScan(scanBuffer);
         setScanBuffer('');
@@ -147,37 +115,27 @@ export default function WorkboardPage() {
     return () => document.removeEventListener('keydown', handler);
   }, [scanBuffer]);
 
-  // Handle scan result
   const handleScan = async (code: string) => {
     const trimmed = code.trim();
     if (!trimmed) return;
-
-    // Find item by barcode in current data
-    const item = allItems.find(i => i.barcode === trimmed);
-    if (item) {
-      advanceItem(item);
-      setLastScanResult(`✅ ${item.description} → ${ITEM_STATUS_LABELS[ITEM_NEXT_STATUS[item.status] || item.status]}`);
-    } else {
-      // Try API search
-      try {
-        const res = await api.get(`/orders/search/barcode/${trimmed}`);
-        const found = res.data.data;
-        if (found) {
-          const nextStatus = ITEM_NEXT_STATUS[found.status] || found.status;
-          statusMutation.mutate({ orderId: found.orderId, itemId: found.id, status: nextStatus });
-          setLastScanResult(`✅ ${found.description} → ${ITEM_STATUS_LABELS[nextStatus]}`);
-          queryClient.invalidateQueries({ queryKey: ['workboard-orders'] });
-        } else {
-          setLastScanResult(`❌ לא נמצא: ${trimmed}`);
+    try {
+      const res = await api.get(`/orders/search/barcode/${trimmed}`);
+      const found = res.data.data;
+      if (found?.orderId) {
+        const order = orders.find(o => o.id === found.orderId);
+        if (order) {
+          advanceOrder(order);
+          setLastScanResult(`✅ הזמנה ${order.orderNumber} עודכנה`);
         }
-      } catch {
+      } else {
         setLastScanResult(`❌ לא נמצא: ${trimmed}`);
       }
+    } catch {
+      setLastScanResult(`❌ לא נמצא: ${trimmed}`);
     }
     setTimeout(() => setLastScanResult(null), 4000);
   };
 
-  // Manual scan submit
   const handleManualScan = () => {
     if (manualScan.trim()) {
       handleScan(manualScan.trim());
@@ -186,26 +144,22 @@ export default function WorkboardPage() {
   };
 
   // Drag handlers
-  const onDragStart = (item: OrderItem) => setDragItem(item);
-  const onDragEnd = () => { setDragItem(null); setDragOverCol(null); };
-  const onDragOver = (e: React.DragEvent, col: string) => {
-    e.preventDefault();
-    setDragOverCol(col);
-  };
+  const onDragStart = (order: Order) => setDragOrder(order);
+  const onDragEnd = () => { setDragOrder(null); setDragOverCol(null); };
+  const onDragOver = (e: React.DragEvent, col: string) => { e.preventDefault(); setDragOverCol(col); };
   const onDragLeave = () => setDragOverCol(null);
   const onDrop = (col: string) => {
-    if (dragItem && dragItem.status !== col) {
-      moveItem(dragItem, col);
-    }
-    setDragItem(null);
+    if (dragOrder && dragOrder.status !== col) moveOrder(dragOrder, col);
+    setDragOrder(null);
     setDragOverCol(null);
   };
 
-  // Order completion info
-  const getOrderCompletion = (order: any) => {
-    const items = order?.items ?? [];
-    const packed = items.filter((i: any) => i.status === 'PACKED' || i.status === 'ITEM_DELIVERED').length;
-    return { total: items.length, done: packed, allDone: packed === items.length && items.length > 0 };
+  const getTimeAgo = (dateStr: string) => {
+    const mins = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
+    if (mins < 60) return `${mins} דק׳`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs} שע׳`;
+    return `${Math.floor(hrs / 24)} ימים`;
   };
 
   if (isLoading) return (
@@ -219,14 +173,13 @@ export default function WorkboardPage() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Top Bar - Scanner */}
+      {/* Top Bar */}
       <div className="bg-white border-b px-4 py-2.5 flex items-center gap-4">
         <div className="flex items-center gap-2">
           <ScanLine className="w-5 h-5 text-blue-600" />
           <h1 className="font-bold text-gray-800">לוח עבודה</h1>
         </div>
 
-        {/* Manual scan input */}
         <div className="flex gap-2 max-w-xs">
           <div className="relative flex-1">
             <Keyboard className="absolute right-3 top-2 w-4 h-4 text-gray-400" />
@@ -245,7 +198,6 @@ export default function WorkboardPage() {
           </button>
         </div>
 
-        {/* Scan result */}
         {lastScanResult && (
           <div className={`px-3 py-1.5 rounded-lg text-sm font-medium animate-fadeIn ${
             lastScanResult.startsWith('✅') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
@@ -254,12 +206,11 @@ export default function WorkboardPage() {
           </div>
         )}
 
-        {/* Stats */}
         <div className="flex gap-3 mr-auto text-xs text-gray-500">
-          {BOARD_COLUMNS.map(col => (
+          {ORDER_BOARD_COLUMNS.map(col => (
             <span key={col} className="flex items-center gap-1">
-              <span>{ITEM_STATUS_ICONS[col]}</span>
-              <span className="font-bold text-gray-700">{columnItems[col]?.length ?? 0}</span>
+              <span>{ORDER_STATUS_ICONS[col]}</span>
+              <span className="font-bold text-gray-700">{columnOrders[col]?.length ?? 0}</span>
             </span>
           ))}
         </div>
@@ -268,13 +219,13 @@ export default function WorkboardPage() {
       {/* Kanban Board */}
       <div className="flex-1 overflow-x-auto">
         <div className="flex h-full min-w-max">
-          {BOARD_COLUMNS.map(col => {
-            const items = columnItems[col] || [];
+          {ORDER_BOARD_COLUMNS.map(col => {
+            const colOrders = columnOrders[col] || [];
             const isOver = dragOverCol === col;
 
             return (
               <div key={col}
-                className={`flex-1 min-w-[200px] max-w-[280px] flex flex-col border-l first:border-l-0 transition-colors ${
+                className={`flex-1 min-w-[220px] max-w-[300px] flex flex-col border-l first:border-l-0 transition-colors ${
                   isOver ? 'bg-blue-50' : 'bg-gray-50'
                 }`}
                 onDragOver={e => onDragOver(e, col)}
@@ -282,133 +233,142 @@ export default function WorkboardPage() {
                 onDrop={() => onDrop(col)}
               >
                 {/* Column Header */}
-                <div className={`px-3 py-2.5 border-b sticky top-0 z-10 ${
-                  isOver ? 'bg-blue-100' : 'bg-white'
-                }`}>
+                <div className={`px-3 py-2.5 border-b sticky top-0 z-10 ${isOver ? 'bg-blue-100' : 'bg-white'}`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-base">{ITEM_STATUS_ICONS[col]}</span>
-                      <span className="font-semibold text-sm text-gray-800">{ITEM_STATUS_LABELS[col]}</span>
+                      <span className="text-base">{ORDER_STATUS_ICONS[col]}</span>
+                      <span className="font-semibold text-sm text-gray-800">{STATUS_LABELS[col]}</span>
                     </div>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                      items.length > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-400'
+                      colOrders.length > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-400'
                     }`}>
-                      {items.length}
+                      {colOrders.length}
                     </span>
                   </div>
                 </div>
 
-                {/* Column Items */}
+                {/* Orders */}
                 <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                  {items.map(item => {
-                    const completion = getOrderCompletion(item.order);
-                    const isExpress = item.order?.priority === 'EXPRESS';
-                    const isExpanded = expandedOrderId === item.orderId;
+                  {colOrders.map(order => {
+                    const isExpress = order.priority === 'EXPRESS';
+                    const isExpanded = expandedOrderId === order.id;
+                    const itemCount = order.items?.length || 0;
 
                     return (
-                      <div key={item.id}
+                      <div key={order.id}
                         draggable
-                        onDragStart={() => onDragStart(item)}
+                        onDragStart={() => onDragStart(order)}
                         onDragEnd={onDragEnd}
-                        className={`bg-white rounded-lg border shadow-sm p-2.5 cursor-grab active:cursor-grabbing hover:shadow-md transition-all ${
-                          dragItem?.id === item.id ? 'opacity-40 scale-95' : ''
-                        } ${isExpress ? 'border-orange-300' : 'border-gray-200'}`}
+                        className={`bg-white rounded-lg border shadow-sm p-3 cursor-grab active:cursor-grabbing hover:shadow-md transition-all ${
+                          dragOrder?.id === order.id ? 'opacity-40 scale-95' : ''
+                        } ${isExpress ? 'border-orange-300 bg-orange-50/30' : 'border-gray-200'}`}
                       >
-                        {/* Order badge */}
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="font-mono text-[10px] text-blue-600 font-bold">
-                            {item.order?.orderNumber}
+                        {/* Header */}
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-mono text-xs text-blue-600 font-bold">
+                            #{order.orderNumber}
                           </span>
                           <div className="flex items-center gap-1">
-                            {isExpress && <Zap className="w-3 h-3 text-orange-500" />}
-                            {completion.allDone && <CheckCircle className="w-3 h-3 text-green-500" />}
+                            {isExpress && <span title="דחוף"><Zap className="w-3.5 h-3.5 text-orange-500" /></span>}
+                            <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
+                              <Clock className="w-2.5 h-2.5" /> {getTimeAgo(order.createdAt)}
+                            </span>
                           </div>
-                        </div>
-
-                        {/* Item description */}
-                        <div className="text-xs font-medium text-gray-800 mb-1 truncate" title={item.description}>
-                          {item.description}
                         </div>
 
                         {/* Customer */}
-                        <div className="flex items-center gap-1 text-[10px] text-gray-400 mb-1.5">
-                          <User className="w-2.5 h-2.5" />
-                          <span className="truncate">{item.order?.customer?.name}</span>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-7 h-7 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <User className="w-3.5 h-3.5 text-blue-600" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium text-gray-800 truncate">{order.customer?.name || 'לקוח'}</div>
+                            {order.customer?.phone && (
+                              <div className="text-[10px] text-gray-400 flex items-center gap-0.5">
+                                <Phone className="w-2.5 h-2.5" /> {order.customer.phone}
+                              </div>
+                            )}
+                          </div>
                         </div>
 
-                        {/* Barcode */}
-                        <div className="font-mono text-[9px] text-gray-300 mb-1.5 truncate">
-                          {item.barcode}
+                        {/* Amount + items */}
+                        <div className="flex items-center justify-between text-xs mb-2">
+                          <span className="text-gray-500 flex items-center gap-1">
+                            <ShoppingBag className="w-3 h-3" /> {itemCount} פריטים
+                          </span>
+                          <span className="font-bold text-gray-800">
+                            {Number(order.totalAmount || 0).toLocaleString()} ₪
+                          </span>
                         </div>
 
-                        {/* Special notes */}
-                        {item.specialNotes && (
-                          <div className="text-[9px] text-amber-600 bg-amber-50 rounded px-1.5 py-0.5 mb-1.5 flex items-center gap-0.5">
-                            <AlertTriangle className="w-2.5 h-2.5" />
-                            <span className="truncate">{item.specialNotes}</span>
+                        {/* Notes */}
+                        {order.notes && (
+                          <div className="text-[10px] text-amber-600 bg-amber-50 rounded px-2 py-1 mb-2 flex items-center gap-1">
+                            <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                            <span className="truncate">{order.notes}</span>
                           </div>
                         )}
 
-                        {/* Completion progress */}
+                        {/* Action */}
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1 text-[10px] text-gray-400">
-                            <ShoppingBag className="w-2.5 h-2.5" />
-                            <span className={completion.allDone ? 'text-green-600 font-bold' : ''}>
-                              {completion.done}/{completion.total}
-                            </span>
-                          </div>
-                          {ITEM_NEXT_STATUS[col] && (
+                          {NEXT_STATUS[col] && (
                             <button
-                              onClick={(e) => { e.stopPropagation(); advanceItem(item); }}
-                              className="text-[9px] px-2 py-0.5 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 font-medium"
+                              onClick={(e) => { e.stopPropagation(); advanceOrder(order); }}
+                              className="text-xs px-3 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 font-medium"
                             >
-                              {ITEM_STATUS_LABELS[ITEM_NEXT_STATUS[col]]} →
+                              {STATUS_LABELS[NEXT_STATUS[col]]} →
                             </button>
+                          )}
+                          {col === 'DELIVERED' && (
+                            <span className="text-xs text-green-600 flex items-center gap-1">
+                              <CheckCircle className="w-3 h-3" /> הושלם
+                            </span>
                           )}
                         </div>
 
-                        {/* Expand to see order items */}
-                        <button
-                          onClick={() => setExpandedOrderId(isExpanded ? null : item.orderId)}
-                          className="w-full mt-1.5 pt-1.5 border-t text-[9px] text-gray-400 hover:text-blue-600 flex items-center justify-center gap-0.5"
-                        >
-                          {isExpanded ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
-                          {isExpanded ? 'סגור' : `${completion.total} פריטים בהזמנה`}
-                        </button>
-
-                        {/* Expanded order items */}
-                        {isExpanded && (
-                          <div className="mt-1.5 space-y-1 animate-fadeIn">
-                            {(item.order?.items ?? []).map((sibling: any) => (
-                              <div key={sibling.id}
-                                className={`flex items-center justify-between text-[10px] px-2 py-1 rounded ${
-                                  sibling.id === item.id ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'
-                                }`}
-                              >
-                                <span className="truncate flex-1">{sibling.description}</span>
-                                <span className={`px-1.5 py-0.5 rounded text-[8px] font-medium ${
-                                  ITEM_STATUS_COLORS[sibling.status]?.split(' ').slice(0, 2).join(' ') || 'bg-gray-100 text-gray-600'
-                                }`}>
-                                  {ITEM_STATUS_LABELS[sibling.status] || sibling.status}
-                                </span>
-                              </div>
-                            ))}
+                        {/* Expand items */}
+                        {itemCount > 0 && (
+                          <>
                             <button
-                              onClick={() => navigate(`/orders/${item.orderId}`)}
-                              className="w-full text-[10px] text-blue-600 hover:text-blue-800 py-0.5"
+                              onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
+                              className="w-full mt-2 pt-2 border-t text-[10px] text-gray-400 hover:text-blue-600 flex items-center justify-center gap-0.5"
                             >
-                              פתח הזמנה ←
+                              {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                              {isExpanded ? 'סגור' : 'צפה בפריטים'}
                             </button>
-                          </div>
+
+                            {isExpanded && (
+                              <div className="mt-2 space-y-1 animate-fadeIn">
+                                {(order.items || []).map((item: any) => (
+                                  <div key={item.id}
+                                    className="flex items-center justify-between text-[10px] px-2 py-1 rounded bg-gray-50"
+                                  >
+                                    <span className="truncate flex-1">{item.description}</span>
+                                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-medium ${
+                                      STATUS_COLORS[item.status]?.split(' ').slice(0, 2).join(' ') || 'bg-gray-100 text-gray-600'
+                                    }`}>
+                                      {STATUS_LABELS[item.status] || item.status}
+                                    </span>
+                                  </div>
+                                ))}
+                                <button
+                                  onClick={() => navigate(`/orders/${order.id}`)}
+                                  className="w-full text-[10px] text-blue-600 hover:text-blue-800 py-0.5"
+                                >
+                                  פתח הזמנה ←
+                                </button>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     );
                   })}
 
-                  {items.length === 0 && (
+                  {colOrders.length === 0 && (
                     <div className="text-center py-8 text-gray-300">
-                      <span className="text-2xl block mb-1">{ITEM_STATUS_ICONS[col]}</span>
-                      <span className="text-[10px]">ריק</span>
+                      <span className="text-2xl block mb-1">{ORDER_STATUS_ICONS[col]}</span>
+                      <span className="text-xs">ריק</span>
                     </div>
                   )}
                 </div>

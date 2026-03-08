@@ -10,17 +10,29 @@ export async function getOrCreateAccount(tenantId: string, customerId: string) {
   });
 
   if (!account) {
-    account = await prisma.prepaidAccount.create({
-      data: {
-        tenantId,
-        customerId,
-        balance: 0,
-        totalLoaded: 0,
-        totalUsed: 0,
-      },
-    });
+    try {
+      account = await prisma.prepaidAccount.create({
+        data: {
+          tenantId,
+          customerId,
+          balance: 0,
+          totalLoaded: 0,
+          totalUsed: 0,
+        },
+      });
+    } catch (err: any) {
+      // Race condition: another request created it first
+      if (err.code === 'P2002') {
+        account = await prisma.prepaidAccount.findFirst({
+          where: { tenantId, customerId },
+        });
+      } else {
+        throw err;
+      }
+    }
   }
 
+  if (!account) throw new Error('Failed to get or create prepaid account');
   return account;
 }
 

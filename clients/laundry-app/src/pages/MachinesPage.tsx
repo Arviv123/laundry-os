@@ -39,7 +39,7 @@ export default function MachinesPage() {
 
   const { data: orders } = useQuery({
     queryKey: ['orders-active'],
-    queryFn: () => api.get('/orders', { params: { status: 'IN_PROGRESS', limit: 100 } }).then(r => r.data.data),
+    queryFn: () => api.get('/orders', { params: { status: 'PROCESSING', limit: 100 } }).then(r => r.data.data),
     refetchInterval: 30_000,
   });
 

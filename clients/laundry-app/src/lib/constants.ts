@@ -1,48 +1,73 @@
 export const STATUS_LABELS: Record<string, string> = {
-  RECEIVED: 'התקבל',
-  PROCESSING: 'בעיבוד',
+  RECEIVED: 'התקבל בדלפק',
+  PENDING_PICKUP: 'ממתין לאיסוף',
+  PICKED_UP: 'נאסף',
+  PROCESSING: 'בתהליך ניקוי',
   WASHING: 'בכביסה',
   DRYING: 'בייבוש',
   IRONING: 'בגיהוץ',
-  READY: 'מוכן',
-  OUT_FOR_DELIVERY: 'במשלוח',
+  PACKAGING: 'באריזה',
+  READY: 'מוכן למסירה',
+  OUT_FOR_DELIVERY: 'שליח בדרך',
   DELIVERED: 'נמסר',
   CANCELLED: 'בוטל',
 };
 
 export const STATUS_COLORS: Record<string, string> = {
   RECEIVED: 'bg-yellow-100 text-yellow-700',
+  PENDING_PICKUP: 'bg-amber-100 text-amber-700',
+  PICKED_UP: 'bg-sky-100 text-sky-700',
   PROCESSING: 'bg-blue-100 text-blue-700',
   WASHING: 'bg-cyan-100 text-cyan-700',
   DRYING: 'bg-orange-100 text-orange-700',
   IRONING: 'bg-purple-100 text-purple-700',
+  PACKAGING: 'bg-indigo-100 text-indigo-700',
   READY: 'bg-green-100 text-green-700',
-  OUT_FOR_DELIVERY: 'bg-indigo-100 text-indigo-700',
+  OUT_FOR_DELIVERY: 'bg-teal-100 text-teal-700',
   DELIVERED: 'bg-emerald-100 text-emerald-700',
   CANCELLED: 'bg-red-100 text-red-700',
 };
 
 export const STATUS_BG: Record<string, string> = {
   RECEIVED: 'bg-yellow-500',
+  PENDING_PICKUP: 'bg-amber-500',
+  PICKED_UP: 'bg-sky-500',
   PROCESSING: 'bg-blue-500',
   WASHING: 'bg-cyan-500',
   DRYING: 'bg-orange-500',
   IRONING: 'bg-purple-500',
+  PACKAGING: 'bg-indigo-500',
   READY: 'bg-green-500',
-  OUT_FOR_DELIVERY: 'bg-indigo-500',
+  OUT_FOR_DELIVERY: 'bg-teal-500',
   DELIVERED: 'bg-emerald-500',
   CANCELLED: 'bg-red-500',
 };
 
-export const STATUS_FLOW = ['RECEIVED', 'PROCESSING', 'WASHING', 'DRYING', 'IRONING', 'READY', 'DELIVERED'];
+export const STATUS_FLOW = ['RECEIVED', 'PENDING_PICKUP', 'PICKED_UP', 'PROCESSING', 'PACKAGING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED'];
 
 export const NEXT_STATUS: Record<string, string> = {
   RECEIVED: 'PROCESSING',
-  PROCESSING: 'WASHING',
-  WASHING: 'DRYING',
-  DRYING: 'IRONING',
-  IRONING: 'READY',
-  READY: 'DELIVERED',
+  PENDING_PICKUP: 'PICKED_UP',
+  PICKED_UP: 'PROCESSING',
+  PROCESSING: 'PACKAGING',
+  PACKAGING: 'READY',
+  READY: 'OUT_FOR_DELIVERY',
+  OUT_FOR_DELIVERY: 'DELIVERED',
+};
+
+// Order-level board columns for the workboard (practical laundry flow)
+export const ORDER_BOARD_COLUMNS = ['RECEIVED', 'PENDING_PICKUP', 'PROCESSING', 'PACKAGING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED'];
+
+export const ORDER_STATUS_ICONS: Record<string, string> = {
+  RECEIVED: '📋',
+  PENDING_PICKUP: '🚗',
+  PICKED_UP: '✅',
+  PROCESSING: '🧹',
+  PACKAGING: '📦',
+  READY: '🎁',
+  OUT_FOR_DELIVERY: '🛵',
+  DELIVERED: '✅',
+  CANCELLED: '❌',
 };
 
 export const PAYMENT_LABELS: Record<string, string> = {

@@ -17,7 +17,7 @@ const CompanySettingsSchema = z.object({
   vatNumber:      z.string().optional(),
   phone:          z.string().optional(),
   email:          z.string().email().optional().or(z.literal('')),
-  logoUrl:        z.string().url().optional().or(z.literal('')),
+  logoUrl:        z.string().optional(),  // data URL or URL
   address: z.object({
     street:  z.string().optional(),
     city:    z.string().optional(),
@@ -29,9 +29,10 @@ const CompanySettingsSchema = z.object({
     defaultPaymentTerms: z.string().optional(),
     defaultVatRate:      z.number().min(0).max(1).optional(),
     invoiceFooter:       z.string().optional(),
-    bankDetails:         z.string().optional(),  // bank details for invoice footer
+    bankDetails:         z.string().optional(),
     showItemCodes:       z.boolean().optional(),
     showBarcode:         z.boolean().optional(),
+    roundUp:             z.boolean().optional(),
   }).optional(),
 });
 

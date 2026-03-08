@@ -71,6 +71,15 @@ import prepaidRouter          from './modules/prepaid/prepaid.routes';
 import customerPortalRouter   from './modules/customer-portal/customer-portal.routes';
 import dashboardRouter        from './modules/dashboard/dashboard.routes';
 
+// Routes — Payment Terminals
+import paymentTerminalRouter from './modules/payment-terminal/payment-terminal.routes';
+
+// Routes — Exports
+import exportsRouter from './modules/exports/exports.routes';
+
+// Routes — Expenses
+import expensesRouter from './modules/expenses/expenses.routes';
+
 // Swagger
 import { swaggerSpec } from './config/swagger';
 
@@ -163,6 +172,9 @@ app.use('/api/branches',   branchesRouter);
 app.use('/api/settings',   settingsRouter);
 app.use('/api/audit',      auditRouter);
 app.use('/api/client-errors', clientErrorsRouter);
+app.use('/api/payment-terminals', paymentTerminalRouter);
+app.use('/api/exports', exportsRouter);
+app.use('/api/expenses', expensesRouter);
 
 // ─── Laundry Routes ──────────────────────────────────────────
 app.use('/api/orders',           ordersRouter);
