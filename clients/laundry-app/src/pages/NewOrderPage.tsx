@@ -414,8 +414,8 @@ export default function NewOrderPage() {
               const itemCount = cart.filter(c => c.serviceId === service.id).reduce((s, c) => s + c.quantity, 0);
               const isFav = favorites.includes(service.id);
               return (
-                <button key={service.id} onClick={() => fastAdd(service)}
-                  className={`relative bg-white border rounded-xl p-3 text-center transition-all duration-100 active:scale-95 ${
+                <div key={service.id} onClick={() => fastAdd(service)}
+                  className={`relative bg-white border rounded-xl p-3 text-center transition-all duration-100 active:scale-95 cursor-pointer ${
                     itemCount > 0 ? 'border-blue-400 shadow-md ring-1 ring-blue-200' : 'border-gray-100 hover:border-blue-200 hover:shadow-sm'}`}>
                   <button onClick={(e) => toggleFavorite(service.id, e)}
                     className="absolute top-1 left-1 p-0.5 hover:bg-gray-100 rounded z-10">
@@ -427,7 +427,7 @@ export default function NewOrderPage() {
                   <div className="text-xs font-semibold text-gray-800 mb-0.5 truncate">{service.name}</div>
                   <div className="text-base font-bold text-blue-600">{Number(service.basePrice)} ₪</div>
                   <div className="text-[9px] text-gray-400 mt-0.5">{CATEGORY_LABELS[service.category] ?? service.category}</div>
-                </button>
+                </div>
               );
             })}
           </div>
