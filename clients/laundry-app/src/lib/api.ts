@@ -16,7 +16,7 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Redirect to login on 401
+// Redirect to login on 401 + log errors to server
 api.interceptors.response.use(
   (res) => res,
   (err) => {
@@ -24,6 +24,25 @@ api.interceptors.response.use(
       localStorage.removeItem('token');
       window.location.href = '/login';
     }
+
+    // Log error to backend (fire-and-forget, skip logging for the log endpoint itself)
+    const url = err.config?.url || '';
+    if (!url.includes('client-errors')) {
+      const payload = {
+        url,
+        method: err.config?.method,
+        status: err.response?.status,
+        message: err.response?.data?.error || err.message,
+        data: err.response?.data,
+        timestamp: new Date().toISOString(),
+      };
+      fetch(`${API_BASE}/client-errors`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).catch(() => {}); // silent
+    }
+
     return Promise.reject(err);
   },
 );

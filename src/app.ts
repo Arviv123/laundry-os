@@ -59,6 +59,9 @@ import settingsRouter   from './modules/settings/settings.routes';
 // Routes — Audit
 import auditRouter      from './modules/audit/audit.routes';
 
+// Routes — Client Error Logging
+import clientErrorsRouter from './modules/client-errors/client-errors.routes';
+
 // Routes — Laundry-Specific
 import ordersRouter           from './modules/orders/orders.routes';
 import servicesCatalogRouter  from './modules/services-catalog/services.routes';
@@ -159,6 +162,7 @@ app.use('/api/notifications', notificationsRouter);
 app.use('/api/branches',   branchesRouter);
 app.use('/api/settings',   settingsRouter);
 app.use('/api/audit',      auditRouter);
+app.use('/api/client-errors', clientErrorsRouter);
 
 // ─── Laundry Routes ──────────────────────────────────────────
 app.use('/api/orders',           ordersRouter);
