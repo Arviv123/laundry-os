@@ -70,6 +70,7 @@ import machinesRouter         from './modules/machines/machines.routes';
 import deliveryRouter         from './modules/delivery/delivery.routes';
 import prepaidRouter          from './modules/prepaid/prepaid.routes';
 import customerPortalRouter   from './modules/customer-portal/customer-portal.routes';
+import customerAuthRouter     from './modules/customer-auth/customer-auth.routes';
 import dashboardRouter        from './modules/dashboard/dashboard.routes';
 
 // Routes — Payment Terminals
@@ -189,6 +190,7 @@ app.use('/api/machines',         machinesRouter);
 app.use('/api/delivery',         deliveryRouter);
 app.use('/api/prepaid',          prepaidRouter);
 app.use('/api/customer-portal',  customerPortalRouter);
+app.use('/api/customer-auth',    customerAuthRouter);
 app.use('/api/dashboard',        dashboardRouter);
 
 // ─── Sentry Error Handler ─────────────────────────────────────
