@@ -6,6 +6,7 @@
 import { prisma } from '../../config/database';
 import { generateOrderNumber, generateItemBarcode } from './order-number.service';
 import { logger } from '../../config/logger';
+import { triggerAutomations } from '../automations/automations.routes';
 
 // ─── Status State Machine ─────────────────────────────────────────────────────
 
@@ -187,6 +188,17 @@ export async function advanceOrderStatus(
   });
 
   logger.info('Order status updated', { orderId, from: order.status, to: newStatus });
+
+  // Fire marketing automations (non-blocking)
+  triggerAutomations(tenantId, 'ORDER_STATUS_CHANGE', {
+    newStatus,
+    customerName: (updated as any).customer?.name || '',
+    customerPhone: (updated as any).customer?.phone || '',
+    orderNumber: updated.orderNumber,
+    status: newStatus,
+    total: String(updated.total),
+  }).catch(() => {});
+
   return updated;
 }
 

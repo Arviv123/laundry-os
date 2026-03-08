@@ -27,6 +27,7 @@ import WorkboardPage from './pages/WorkboardPage';
 import CashDrawerPage from './pages/CashDrawerPage';
 import PaymentTerminalsPage from './pages/PaymentTerminalsPage';
 import ExpensesPage from './pages/ExpensesPage';
+import AutomationsPage from './pages/AutomationsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, isLoading } = useAuth();
@@ -66,6 +67,7 @@ export default function App() {
         <Route path="cash-drawer" element={<CashDrawerPage />} />
         <Route path="payment-terminals" element={<PaymentTerminalsPage />} />
         <Route path="expenses" element={<ExpensesPage />} />
+        <Route path="automations" element={<AutomationsPage />} />
       </Route>
     </Routes>
   );
