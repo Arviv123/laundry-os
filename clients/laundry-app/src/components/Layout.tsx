@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut';
+import CommandPalette from './CommandPalette';
 import {
   LayoutDashboard, ShoppingBag, Shirt, Cog, Users, Truck, Wallet,
   BarChart3, WashingMachine, ScanLine, Tags, Building2, Settings,
-  BookOpen, LogOut, Menu, X, ChevronDown, ChevronLeft,
+  BookOpen, LogOut, Menu, X, ChevronDown, ChevronLeft, Search, Command,
 } from 'lucide-react';
 
 const NAV_SECTIONS = [
@@ -47,9 +49,14 @@ export default function Layout() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(
     Object.fromEntries(NAV_SECTIONS.map(s => [s.title, true]))
   );
+
+  useKeyboardShortcut([
+    { key: 'k', ctrl: true, handler: () => setCommandPaletteOpen(prev => !prev) },
+  ]);
 
   const toggleSection = (title: string) => {
     setExpandedSections(prev => ({ ...prev, [title]: !prev[title] }));
@@ -57,6 +64,8 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen bg-gray-50">
+      <CommandPalette isOpen={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
+
       {/* Sidebar */}
       <aside className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-white border-l border-gray-200 flex flex-col transition-all duration-200 shadow-sm`}>
         {/* Header */}
@@ -73,6 +82,18 @@ export default function Layout() {
             {sidebarOpen ? <ChevronLeft className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
+
+        {/* Quick Search Button */}
+        {sidebarOpen && (
+          <button onClick={() => setCommandPaletteOpen(true)}
+            className="mx-3 mt-3 flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-colors">
+            <Search className="w-4 h-4" />
+            <span className="flex-1 text-right">חיפוש...</span>
+            <kbd className="flex items-center gap-0.5 px-1.5 py-0.5 bg-gray-100 rounded text-[10px]">
+              <Command className="w-2.5 h-2.5" />K
+            </kbd>
+          </button>
+        )}
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-2">

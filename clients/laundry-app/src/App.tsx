@@ -10,6 +10,12 @@ import ServicesPage from './pages/ServicesPage';
 import MachinesPage from './pages/MachinesPage';
 import DeliveryPage from './pages/DeliveryPage';
 import CustomersPage from './pages/CustomersPage';
+import PrepaidPage from './pages/PrepaidPage';
+import AccountingPage from './pages/AccountingPage';
+import InvoicesPage from './pages/InvoicesPage';
+import InventoryPage from './pages/InventoryPage';
+import BranchesPage from './pages/BranchesPage';
+import SettingsPage from './pages/SettingsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, isLoading } = useAuth();
@@ -31,6 +37,12 @@ export default function App() {
         <Route path="machines" element={<MachinesPage />} />
         <Route path="delivery" element={<DeliveryPage />} />
         <Route path="customers" element={<CustomersPage />} />
+        <Route path="prepaid" element={<PrepaidPage />} />
+        <Route path="accounting" element={<AccountingPage />} />
+        <Route path="invoices" element={<InvoicesPage />} />
+        <Route path="inventory" element={<InventoryPage />} />
+        <Route path="branches" element={<BranchesPage />} />
+        <Route path="settings" element={<SettingsPage />} />
       </Route>
     </Routes>
   );

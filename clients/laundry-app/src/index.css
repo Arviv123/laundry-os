@@ -10,3 +10,29 @@ body {
 @layer base {
   * { @apply border-gray-200; }
 }
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(-100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes countUp {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fadeIn { animation: fadeIn 0.2s ease-out; }
+.animate-slideDown { animation: slideDown 0.2s ease-out; }
+.animate-toastIn { animation: toastIn 0.3s ease-out; }
+.animate-countUp { animation: countUp 0.3s ease-out; }

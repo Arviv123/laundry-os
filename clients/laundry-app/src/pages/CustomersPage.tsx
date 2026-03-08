@@ -1,20 +1,23 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useDebounce } from '../hooks/useDebounce';
+import { SkeletonGrid } from '../components/Skeleton';
 import api from '../lib/api';
 import { Users, Search, Phone, Mail } from 'lucide-react';
 
 export default function CustomersPage() {
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 300);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['customers', search],
-    queryFn: () => api.get('/crm/customers', { params: { search: search || undefined, limit: 50 } }).then(r => r.data.data ?? r.data),
+    queryKey: ['customers', debouncedSearch],
+    queryFn: () => api.get('/crm/customers', { params: { search: debouncedSearch || undefined, limit: 50 } }).then(r => r.data.data ?? r.data),
   });
 
   const customers = Array.isArray(data) ? data : data?.customers ?? [];
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-6 space-y-4 animate-fadeIn">
       <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
         <Users className="w-7 h-7 text-blue-600" /> לקוחות
       </h1>
@@ -27,8 +30,8 @@ export default function CustomersPage() {
         />
       </div>
 
+      {isLoading ? <SkeletonGrid count={6} /> : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {isLoading && <p className="col-span-3 text-center text-gray-400">טוען...</p>}
         {customers.map((c: any) => (
           <div key={c.id} className="bg-white rounded-xl shadow-sm border p-5 hover:shadow-md transition-shadow">
             <div className="flex items-start justify-between">
@@ -54,10 +57,11 @@ export default function CustomersPage() {
             )}
           </div>
         ))}
-        {customers.length === 0 && !isLoading && (
+        {customers.length === 0 && (
           <p className="col-span-3 text-center text-gray-400">לא נמצאו לקוחות</p>
         )}
       </div>
+      )}
     </div>
   );
 }
