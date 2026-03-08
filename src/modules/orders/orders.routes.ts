@@ -92,13 +92,17 @@ router.get('/search/barcode/:code', asyncHandler(async (req: AuthenticatedReques
 // ─── List Orders ─────────────────────────────────────────────────
 
 router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const { status, customerId, priority, search, page = '1', limit = '20' } = req.query;
+  const { status, customerId, priority, search, deliveryType, page = '1', limit = '20' } = req.query;
   const skip = (Number(page) - 1) * Number(limit);
 
   const where: any = { tenantId: req.user.tenantId };
-  if (status) where.status = status;
+  if (status) {
+    const statuses = (status as string).split(',').map(s => s.trim()).filter(Boolean);
+    where.status = statuses.length === 1 ? statuses[0] : { in: statuses };
+  }
   if (customerId) where.customerId = customerId;
   if (priority) where.priority = priority;
+  if (deliveryType) where.deliveryType = deliveryType;
   if (search) {
     where.OR = [
       { orderNumber: { contains: search as string, mode: 'insensitive' } },
