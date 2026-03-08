@@ -88,6 +88,13 @@ import automationsRouter from './modules/automations/automations.routes';
 // Routes — Price Lists
 import priceListsRouter from './modules/price-lists/price-lists.routes';
 
+// Routes — Institutional Billing
+import billingRouter from './modules/billing/billing.routes';
+
+// Routes — Tasks & Delivery Management
+import tasksRouter from './modules/tasks/tasks.routes';
+import deliveryMgmtRouter from './modules/delivery-mgmt/delivery-mgmt.routes';
+
 // Swagger
 import { swaggerSpec } from './config/swagger';
 
@@ -196,6 +203,9 @@ app.use('/api/prepaid',          prepaidRouter);
 app.use('/api/customer-portal',  customerPortalRouter);
 app.use('/api/customer-auth',    customerAuthRouter);
 app.use('/api/dashboard',        dashboardRouter);
+app.use('/api/billing',          billingRouter);
+app.use('/api/tasks',            tasksRouter);
+app.use('/api/delivery-mgmt',    deliveryMgmtRouter);
 
 // ─── Sentry Error Handler ─────────────────────────────────────
 if (process.env.SENTRY_DSN) {

@@ -12,8 +12,11 @@ import {
   Loader2,
   User,
   FileText,
+  PenTool,
+  X,
 } from 'lucide-react';
 import api from '../lib/api';
+import SignaturePad from '../components/SignaturePad';
 
 interface OrderItem {
   id: string;
@@ -42,6 +45,9 @@ interface Order {
   items?: OrderItem[];
   createdAt?: string;
   updatedAt?: string;
+  signatureData?: string;
+  signedBy?: string;
+  signedAt?: string;
   statusHistory?: Array<{
     status: string;
     timestamp: string;
@@ -77,6 +83,9 @@ export default function DeliveryDetailPage() {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
+  const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
+  const [savingSignature, setSavingSignature] = useState(false);
 
   useEffect(() => {
     loadOrder();
@@ -104,6 +113,34 @@ export default function DeliveryDetailPage() {
       // handled by interceptor
     } finally {
       setUpdating(false);
+    }
+  };
+
+  // Called when the driver presses "נמסר ללקוח" — opens signature modal first
+  const handleDeliveredClick = () => {
+    setShowSignatureModal(true);
+  };
+
+  // Save signature + mark as DELIVERED
+  const handleConfirmDelivery = async () => {
+    if (!order || !signatureDataUrl) return;
+    setSavingSignature(true);
+    try {
+      const customerName = getCustomerName(order);
+      // 1. Save signature
+      await api.post(`/orders/${order.id}/signature`, {
+        signatureData: signatureDataUrl,
+        signedBy: customerName,
+      });
+      // 2. Advance status to DELIVERED
+      await api.patch(`/orders/${order.id}/status`, { status: 'DELIVERED' });
+      setShowSignatureModal(false);
+      setSignatureDataUrl(null);
+      await loadOrder();
+    } catch {
+      // handled by interceptor
+    } finally {
+      setSavingSignature(false);
     }
   };
 
@@ -335,7 +372,7 @@ export default function DeliveryDetailPage() {
 
         {order.status === 'OUT_FOR_DELIVERY' && (
           <button
-            onClick={() => updateStatus('DELIVERED')}
+            onClick={handleDeliveredClick}
             disabled={updating}
             className="w-full flex items-center justify-center gap-2 py-4 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-xl font-bold text-lg transition-colors"
           >
@@ -359,6 +396,72 @@ export default function DeliveryDetailPage() {
           </a>
         )}
       </div>
+
+      {/* Existing Signature Badge */}
+      {order.signatureData && (
+        <div className="bg-green-50 border border-green-200 rounded-2xl p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <PenTool size={18} className="text-green-600" />
+            <h3 className="font-bold text-green-800 text-sm">חתימה קיימת</h3>
+          </div>
+          <p className="text-green-700 text-xs mb-2">
+            נחתם ע"י: {order.signedBy || 'לקוח'} |{' '}
+            {order.signedAt
+              ? new Date(order.signedAt).toLocaleString('he-IL')
+              : ''}
+          </p>
+          <img
+            src={order.signatureData}
+            alt="חתימת לקוח"
+            className="max-h-24 rounded-lg border border-green-200 bg-white"
+          />
+        </div>
+      )}
+
+      {/* Signature Modal */}
+      {showSignatureModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
+          <div className="bg-white w-full max-w-lg rounded-t-2xl p-5 space-y-4 animate-slide-up">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <PenTool size={20} className="text-green-600" />
+                חתום על תעודת משלוח
+              </h2>
+              <button
+                onClick={() => {
+                  setShowSignatureModal(false);
+                  setSignatureDataUrl(null);
+                }}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-500">
+              בקש מהלקוח לחתום באצבע על המסך לאישור קבלת המשלוח.
+            </p>
+
+            <SignaturePad
+              onSign={(dataUrl) => setSignatureDataUrl(dataUrl)}
+              onClear={() => setSignatureDataUrl(null)}
+            />
+
+            <button
+              onClick={handleConfirmDelivery}
+              disabled={!signatureDataUrl || savingSignature}
+              className="w-full flex items-center justify-center gap-2 py-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 disabled:text-gray-500 text-white rounded-xl font-bold text-lg transition-colors"
+            >
+              {savingSignature ? (
+                <Loader2 size={22} className="animate-spin" />
+              ) : (
+                <CheckCircle size={22} />
+              )}
+              שמור חתימה ואשר מסירה
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

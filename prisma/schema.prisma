@@ -355,6 +355,9 @@ model Tenant {
   // Marketing
   automations           MarketingAutomation[]
   campaigns             MarketingCampaign[]
+  // Tasks & Delivery Management
+  tasks                 EmployeeTask[]
+  deliveryAssignments   DeliveryAssignment[]
 
   @@map("tenants")
 }
@@ -698,6 +701,11 @@ model Customer {
   paymentTermsDays  Int?      // 0=COD, 30=net30, 60=net60
   loyaltyBarcode    String?   // ברקוד כרטיס נאמנות
 
+  // ─── Institutional Billing (חיוב מוסדי) ───
+  isInstitutional   Boolean   @default(false)
+  billingCycle      String?   // WEEKLY | BIWEEKLY | MONTHLY
+  paymentTerms      Int?      @default(30) // ימי אשראי (net days)
+
   // ─── Laundry-Specific Fields ───
   loyaltyTier           String?   @default("STANDARD") // STANDARD | SILVER | GOLD | VIP
   defaultDeliveryAddress Json?    // { street, city, floor, apartment, notes }
@@ -728,6 +736,7 @@ model Customer {
   @@index([tenantId, status])
   @@index([tenantId, type])
   @@index([tenantId, loyaltyBarcode])
+  @@index([tenantId, isInstitutional])
   @@map("customers")
 }
 
@@ -4010,6 +4019,11 @@ model LaundryOrder {
   // Invoice link (created when paid)
   invoiceId         String?
 
+  // Digital signature (delivery proof)
+  signatureData     String?            @db.Text   // base64 PNG data URL
+  signedBy          String?                       // שם החותם
+  signedAt          DateTime?
+
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
@@ -4018,6 +4032,7 @@ model LaundryOrder {
   branch            Branch?            @relation(fields: [branchId], references: [id])
   items             LaundryOrderItem[]
   deliveryStops     DeliveryStop[]
+  deliveryAssignments DeliveryAssignment[]
   machine           Machine?           @relation("MachineCurrentOrder")
 
   @@unique([tenantId, orderNumber])
@@ -4232,4 +4247,52 @@ model MarketingCampaign {
   updatedAt     DateTime        @updatedAt
 
   @@index([tenantId, status])
+}
+
+// ─── Employee Tasks (משימות עובדים) ──────────────────────────
+
+model EmployeeTask {
+  id          String       @id @default(cuid())
+  tenantId    String
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  title       String
+  description String?
+  assignedTo  String?      // userId
+  priority    String       @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  status      String       @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED, CANCELLED
+  dueDate     DateTime?
+  completedAt DateTime?
+  category    String?      // e.g. "cleaning", "maintenance", "delivery", "admin"
+  orderId     String?      // optional link to a laundry order
+  notes       String?
+  createdBy   String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([tenantId, status])
+  @@index([tenantId, assignedTo, status])
+}
+
+// ─── Delivery Assignments (הקצאות משלוח) ─────────────────────
+
+model DeliveryAssignment {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  driverId      String   // userId of driver
+  orderId       String
+  order         LaundryOrder @relation(fields: [orderId], references: [id])
+  type          String   // PICKUP or DELIVERY
+  status        String   @default("PENDING") // PENDING, ACCEPTED, IN_PROGRESS, COMPLETED, FAILED
+  scheduledAt   DateTime?
+  completedAt   DateTime?
+  notes         String?
+  signatureData String?  @db.Text // base64 signature image
+  signedBy      String?  // name of person who signed
+  signedAt      DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tenantId, driverId, status])
+  @@index([tenantId, orderId])
 }

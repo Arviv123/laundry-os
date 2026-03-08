@@ -8,7 +8,7 @@ import {
   BarChart3, WashingMachine, ScanLine, Tags, Building2, Settings,
   BookOpen, LogOut, Menu, X, ChevronDown, ChevronLeft, Search, Command,
   Upload, Award, Percent, TrendingUp, QrCode, Gift, Columns3, Banknote,
-  CreditCard, Receipt as ReceiptIcon, Zap, Tag,
+  CreditCard, Receipt as ReceiptIcon, Zap, Tag, ClipboardList, Phone,
 } from 'lucide-react';
 
 const NAV_SECTIONS = [
@@ -27,7 +27,10 @@ const NAV_SECTIONS = [
     items: [
       { path: '/services', label: 'שירותים', icon: Tags },
       { path: '/machines', label: 'מכונות', icon: WashingMachine },
-      { path: '/delivery', label: 'משלוחים', icon: Truck },
+      { path: '/delivery', label: 'הזמנות משלוח', icon: Truck },
+      { path: '/delivery-mgmt', label: 'ניהול משלוחים', icon: Truck },
+      { path: '/phone-delivery', label: 'הזמנת משלוח טלפוני', icon: Phone },
+      { path: '/tasks', label: 'משימות', icon: ClipboardList },
       { path: '/customers', label: 'לקוחות', icon: Users },
       { path: '/prepaid', label: 'מקדמות', icon: Wallet },
       { path: '/cash-drawer', label: 'קופה', icon: Banknote },

@@ -672,53 +672,48 @@ export default function SettingsPage() {
               <h2 className="text-lg font-semibold text-gray-800">קישור פורטל לקוח</h2>
               <p className="text-sm text-gray-500">שתפו את הקישור הזה עם הלקוחות שלכם כדי שיוכלו לעקוב אחרי הזמנות, להזמין משלוח ולנהל את החשבון שלהם.</p>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 space-y-4">
-                <div className="flex items-center gap-2 text-blue-700 font-semibold">
-                  <ExternalLink className="w-5 h-5" />
-                  קישור לפורטל לקוח
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    readOnly
-                    value={`${window.location.origin.replace('laundry-os-app', 'laundry-customer')}/login`}
-                    className="flex-1 px-4 py-3 bg-white border rounded-lg text-sm text-gray-700 font-mono"
-                    dir="ltr"
-                  />
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(`${window.location.origin.replace('laundry-os-app', 'laundry-customer')}/login`);
-                      addToast('הקישור הועתק');
-                    }}
-                    className="flex items-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                  >
-                    <Copy className="w-4 h-4" /> העתק
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-green-50 border border-green-200 rounded-xl p-5 space-y-4">
-                <div className="flex items-center gap-2 text-green-700 font-semibold">
-                  <ExternalLink className="w-5 h-5" />
-                  קישור לאפליקציית שליח
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    readOnly
-                    value={`${window.location.origin.replace('laundry-os-app', 'laundry-courier')}/login`}
-                    className="flex-1 px-4 py-3 bg-white border rounded-lg text-sm text-gray-700 font-mono"
-                    dir="ltr"
-                  />
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(`${window.location.origin.replace('laundry-os-app', 'laundry-courier')}/login`);
-                      addToast('הקישור הועתק');
-                    }}
-                    className="flex items-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                  >
-                    <Copy className="w-4 h-4" /> העתק
-                  </button>
-                </div>
-              </div>
+              {(() => {
+                const origin = window.location.origin;
+                const isLocal = origin.includes('localhost') || origin.includes('127.0.0.1');
+                const customerUrl = isLocal
+                  ? origin.replace(/:\d+$/, ':5181') + '/login'
+                  : origin.replace('laundry-os-app', 'laundry-customer') + '/login';
+                const courierUrl = isLocal
+                  ? origin.replace(/:\d+$/, ':5182') + '/login'
+                  : origin.replace('laundry-os-app', 'laundry-courier') + '/login';
+                return (
+                  <>
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 space-y-4">
+                      <div className="flex items-center gap-2 text-blue-700 font-semibold">
+                        <ExternalLink className="w-5 h-5" />
+                        קישור לפורטל לקוח
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input readOnly value={customerUrl}
+                          className="flex-1 px-4 py-3 bg-white border rounded-lg text-sm text-gray-700 font-mono" dir="ltr" />
+                        <button onClick={() => { navigator.clipboard.writeText(customerUrl); addToast('הקישור הועתק'); }}
+                          className="flex items-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                          <Copy className="w-4 h-4" /> העתק
+                        </button>
+                      </div>
+                    </div>
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-5 space-y-4">
+                      <div className="flex items-center gap-2 text-green-700 font-semibold">
+                        <ExternalLink className="w-5 h-5" />
+                        קישור לאפליקציית שליח
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input readOnly value={courierUrl}
+                          className="flex-1 px-4 py-3 bg-white border rounded-lg text-sm text-gray-700 font-mono" dir="ltr" />
+                        <button onClick={() => { navigator.clipboard.writeText(courierUrl); addToast('הקישור הועתק'); }}
+                          className="flex items-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
+                          <Copy className="w-4 h-4" /> העתק
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
 
               <div className="border rounded-xl p-5 space-y-3">
                 <h3 className="font-semibold text-gray-800">איך זה עובד?</h3>

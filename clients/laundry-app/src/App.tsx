@@ -29,6 +29,9 @@ import PaymentTerminalsPage from './pages/PaymentTerminalsPage';
 import ExpensesPage from './pages/ExpensesPage';
 import AutomationsPage from './pages/AutomationsPage';
 import PriceListsPage from './pages/PriceListsPage';
+import TasksPage from './pages/TasksPage';
+import DeliveryMgmtPage from './pages/DeliveryMgmtPage';
+import PhoneDeliveryPage from './pages/PhoneDeliveryPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, isLoading } = useAuth();
@@ -70,6 +73,9 @@ export default function App() {
         <Route path="expenses" element={<ExpensesPage />} />
         <Route path="automations" element={<AutomationsPage />} />
         <Route path="price-lists" element={<PriceListsPage />} />
+        <Route path="tasks" element={<TasksPage />} />
+        <Route path="delivery-mgmt" element={<DeliveryMgmtPage />} />
+        <Route path="phone-delivery" element={<PhoneDeliveryPage />} />
       </Route>
     </Routes>
   );

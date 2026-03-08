@@ -58,6 +58,11 @@ const PaymentSchema = z.object({
   method: z.enum(['CASH', 'CREDIT_CARD', 'BANK_TRANSFER', 'PREPAID']),
 });
 
+const SignatureSchema = z.object({
+  signatureData: z.string().min(1),   // base64 PNG data URL
+  signedBy: z.string().min(1),        // שם החותם
+});
+
 // ─── Dashboard KPIs ──────────────────────────────────────────────
 
 router.get('/dashboard', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
@@ -192,6 +197,51 @@ router.delete('/:id', asyncHandler(async (req: AuthenticatedRequest, res: Respon
 router.post('/:id/payment', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { amount, method } = PaymentSchema.parse(req.body);
   const order = await recordPayment(req.params.id, req.user.tenantId, amount, method);
+  sendSuccess(res, order);
+}));
+
+// ─── Save Signature ─────────────────────────────────────────────
+
+router.post('/:id/signature', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { signatureData, signedBy } = SignatureSchema.parse(req.body);
+
+  const order = await prisma.laundryOrder.findFirst({
+    where: { id: req.params.id, tenantId: req.user.tenantId },
+  });
+  if (!order) return sendError(res, 'הזמנה לא נמצאה', 404);
+
+  // Append signature event to status history
+  const history = Array.isArray(order.statusHistory) ? order.statusHistory as any[] : [];
+  history.push({
+    type: 'SIGNATURE',
+    signedBy,
+    signedAt: new Date(),
+    note: `חתימה דיגיטלית התקבלה מ-${signedBy}`,
+  });
+
+  const updated = await prisma.laundryOrder.update({
+    where: { id: order.id },
+    data: {
+      signatureData,
+      signedBy,
+      signedAt: new Date(),
+      statusHistory: history,
+    },
+    include: { items: true, customer: true },
+  });
+
+  sendSuccess(res, updated);
+}));
+
+// ─── Get Signature ──────────────────────────────────────────────
+
+router.get('/:id/signature', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const order = await prisma.laundryOrder.findFirst({
+    where: { id: req.params.id, tenantId: req.user.tenantId },
+    select: { signatureData: true, signedBy: true, signedAt: true },
+  });
+  if (!order) return sendError(res, 'הזמנה לא נמצאה', 404);
+  if (!order.signatureData) return sendError(res, 'לא נמצאה חתימה להזמנה זו', 404);
   sendSuccess(res, order);
 }));
 
