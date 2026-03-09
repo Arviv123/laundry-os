@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../contexts/ToastContext';
 import api from '../lib/api';
@@ -691,6 +691,39 @@ function AssignmentDrawer({ assignment, driverName, customerName, address, onClo
   onSign: (data: any) => void; isSignSubmitting: boolean;
 }) {
   const [signedBy, setSignedBy] = useState('');
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isDrawing = useRef(false);
+  const lastPos = useRef({ x: 0, y: 0 });
+
+  const getPos = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    if ('touches' in e) return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
+    return { x: (e as React.MouseEvent).clientX - rect.left, y: (e as React.MouseEvent).clientY - rect.top };
+  }, []);
+
+  const startDraw = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    e.preventDefault(); isDrawing.current = true; lastPos.current = getPos(e);
+  }, [getPos]);
+
+  const draw = useCallback((e: React.TouchEvent | React.MouseEvent) => {
+    if (!isDrawing.current) return;
+    e.preventDefault();
+    const ctx = canvasRef.current?.getContext('2d');
+    if (!ctx) return;
+    const pos = getPos(e);
+    ctx.beginPath(); ctx.moveTo(lastPos.current.x, lastPos.current.y);
+    ctx.lineTo(pos.x, pos.y); ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.stroke();
+    lastPos.current = pos;
+  }, [getPos]);
+
+  const endDraw = useCallback(() => { isDrawing.current = false; }, []);
+
+  const clearCanvas = () => {
+    const ctx = canvasRef.current?.getContext('2d');
+    if (ctx && canvasRef.current) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+  };
 
   return (
     <div className="fixed inset-0 bg-black/40 flex justify-start z-50">
@@ -787,16 +820,29 @@ function AssignmentDrawer({ assignment, driverName, customerName, address, onClo
               <input type="text" value={signedBy} onChange={e => setSignedBy(e.target.value)}
                 placeholder="הזן שם מלא"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-              <div className="border-2 border-dashed border-gray-300 rounded-xl h-32 flex items-center justify-center text-gray-400 text-sm">
-                אזור חתימה (בפיתוח)
+              <div className="border-2 border-dashed border-gray-300 rounded-xl overflow-hidden bg-white">
+                <canvas
+                  ref={canvasRef}
+                  width={340}
+                  height={128}
+                  className="w-full touch-none cursor-crosshair"
+                  onMouseDown={startDraw} onMouseMove={draw} onMouseUp={endDraw} onMouseLeave={endDraw}
+                  onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={endDraw}
+                />
               </div>
-              <button
-                disabled={!signedBy || isSignSubmitting}
-                onClick={() => onSign({ signatureData: 'placeholder-signature', signedBy })}
-                className="w-full py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2">
-                {isSignSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-                שמור חתימה
-              </button>
+              <div className="flex gap-2">
+                <button onClick={clearCanvas} type="button"
+                  className="flex-1 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+                  נקה חתימה
+                </button>
+                <button
+                  disabled={!signedBy || isSignSubmitting}
+                  onClick={() => onSign({ signatureData: canvasRef.current?.toDataURL('image/png') || '', signedBy })}
+                  className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2">
+                  {isSignSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                  שמור חתימה
+                </button>
+              </div>
             </div>
           )}
 
