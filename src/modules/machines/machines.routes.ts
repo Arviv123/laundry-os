@@ -76,8 +76,13 @@ router.post('/', requireMinRole('ADMIN') as any, asyncHandler(async (req: Authen
 
 router.patch('/:id', requireMinRole('ADMIN') as any, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const data = MachineSchema.partial().parse(req.body);
+  const existing = await prisma.machine.findFirst({
+    where: { id: req.params.id, tenantId: req.user.tenantId },
+  });
+  if (!existing) return sendError(res, 'מכונה לא נמצאה', 404);
+
   const machine = await prisma.machine.update({
-    where: { id: req.params.id },
+    where: { id: existing.id },
     data,
   });
   sendSuccess(res, machine);

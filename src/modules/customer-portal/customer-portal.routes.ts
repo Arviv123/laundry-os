@@ -5,6 +5,7 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
 import { authenticate } from '../../middleware/auth';
+import { enforceTenantIsolation } from '../../middleware/tenant';
 import { AuthenticatedRequest } from '../../shared/types';
 import { sendSuccess, sendError } from '../../shared/utils/response';
 import { asyncHandler } from '../../shared/utils/asyncHandler';
@@ -12,6 +13,7 @@ import { prisma } from '../../config/database';
 
 const router = Router();
 router.use(authenticate as any);
+router.use(enforceTenantIsolation as any);
 
 // ─── My Orders ───────────────────────────────────────────────────
 
@@ -23,7 +25,7 @@ router.get('/orders', asyncHandler(async (req: AuthenticatedRequest, res: Respon
   if (!customer) return sendError(res, 'לקוח לא נמצא', 404);
 
   const orders = await prisma.laundryOrder.findMany({
-    where: { customerId: customer.id },
+    where: { customerId: customer.id, tenantId: req.user.tenantId },
     include: { items: true },
     orderBy: { receivedAt: 'desc' },
     take: 50,

@@ -193,6 +193,39 @@ export default function OrderDetailPage() {
 
   const resetItemForm = () => setItemForm({ serviceId: '', description: '', category: '', quantity: '1', color: '', brand: '', specialNotes: '', weight: '' });
 
+  // Canvas drawing helpers for signature — MUST be before any early returns
+  const startDrawing = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    isDrawingRef.current = true;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
+    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  }, []);
+
+  const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawingRef.current) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
+    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  }, []);
+
+  const stopDrawing = useCallback(() => { isDrawingRef.current = false; }, []);
+
+  // ─── Early returns (after all hooks) ────────────────────────
   if (isLoading) return (
     <div className="p-6 max-w-5xl mx-auto space-y-6 animate-fadeIn">
       <div className="h-8 w-48 bg-gray-200 rounded animate-pulse" />
@@ -231,38 +264,6 @@ export default function OrderDetailPage() {
     sessionStorage.setItem('repeat-order', JSON.stringify(repeatData));
     navigate('/orders/new');
   };
-
-  // Canvas drawing helpers for signature
-  const startDrawing = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    isDrawingRef.current = true;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
-    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-  }, []);
-
-  const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if (!isDrawingRef.current) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
-    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#1e293b';
-    ctx.lineTo(x, y);
-    ctx.stroke();
-  }, []);
-
-  const stopDrawing = useCallback(() => { isDrawingRef.current = false; }, []);
 
   const clearCanvas = () => {
     const canvas = canvasRef.current;

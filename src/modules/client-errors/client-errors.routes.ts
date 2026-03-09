@@ -9,21 +9,19 @@ import { prisma } from '../../config/database';
 import { logger } from '../../config/logger';
 
 const router = Router();
-router.use(authenticate as any);
-router.use(enforceTenantIsolation as any);
 
-// POST /api/client-errors — receive and log frontend errors (to DB instead of file)
-router.post('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+// POST /api/client-errors — public endpoint for frontend error logging (no auth required)
+router.post('/', asyncHandler(async (req: Request, res: Response) => {
   const { url, method, status, message, data, timestamp } = req.body;
 
-  logger.warn('Client error reported', {
-    tenantId: req.user.tenantId,
-    userId: req.user.userId,
-    url, method, status, message,
-  });
+  logger.warn('Client error reported', { url, method, status, message, timestamp });
 
   sendSuccess(res, { ok: true });
 }));
+
+// Protected admin routes below
+router.use(authenticate as any);
+router.use(enforceTenantIsolation as any);
 
 // GET /api/client-errors — admin only
 router.get(

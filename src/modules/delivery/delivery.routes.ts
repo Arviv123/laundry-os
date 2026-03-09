@@ -137,6 +137,15 @@ router.patch('/runs/:id/reorder', asyncHandler(async (req: AuthenticatedRequest,
     return sendError(res, 'הסיבוב נעול — רק מנהל יכול לשנות סדר', 403);
   }
 
+  // Verify all stops belong to this run
+  const validStops = await prisma.deliveryStop.findMany({
+    where: { deliveryRunId: run.id, id: { in: stops.map(s => s.stopId) } },
+    select: { id: true },
+  });
+  const validIds = new Set(validStops.map(s => s.id));
+  const invalidStops = stops.filter(s => !validIds.has(s.stopId));
+  if (invalidStops.length > 0) return sendError(res, 'עצירות לא שייכות לסיבוב זה', 400);
+
   await prisma.$transaction(
     stops.map(s =>
       prisma.deliveryStop.update({
@@ -196,7 +205,11 @@ router.patch('/runs/:id/unlock', asyncHandler(async (req: AuthenticatedRequest, 
 
 router.post('/runs/:id/stops/:stopId/navigate', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const stop = await prisma.deliveryStop.findFirst({
-    where: { id: req.params.stopId, deliveryRunId: req.params.id },
+    where: {
+      id: req.params.stopId,
+      deliveryRunId: req.params.id,
+      deliveryRun: { tenantId: req.user.tenantId },
+    },
     include: { order: { include: { customer: true } }, deliveryRun: { include: { driver: true } } },
   });
   if (!stop) return sendError(res, 'עצירה לא נמצאה', 404);
@@ -220,8 +233,14 @@ router.patch('/runs/:id/stops/:stopId/arrive', asyncHandler(async (req: Authenti
   });
   if (!run) return sendError(res, 'סיבוב לא נמצא', 404);
 
+  // Verify stop belongs to this run
+  const existingStop = await prisma.deliveryStop.findFirst({
+    where: { id: req.params.stopId, deliveryRunId: run.id },
+  });
+  if (!existingStop) return sendError(res, 'עצירה לא נמצאה בסיבוב זה', 404);
+
   const stop = await prisma.deliveryStop.update({
-    where: { id: req.params.stopId },
+    where: { id: existingStop.id },
     data: { status: 'ARRIVED' },
     include: { order: { include: { customer: true } } },
   });
@@ -233,21 +252,26 @@ router.patch('/runs/:id/stops/:stopId/arrive', asyncHandler(async (req: Authenti
 router.patch('/runs/:id/stops/:stopId', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { signature, notes, status: reqStatus } = req.body;
 
+  // Verify run belongs to tenant and stop belongs to run
+  const run = await prisma.deliveryRun.findFirst({
+    where: { id: req.params.id, tenantId: req.user.tenantId },
+  });
+  if (!run) return sendError(res, 'סיבוב לא נמצא', 404);
+
+  const existingStop = await prisma.deliveryStop.findFirst({
+    where: { id: req.params.stopId, deliveryRunId: run.id },
+    include: { order: { include: { customer: true } } },
+  });
+  if (!existingStop) return sendError(res, 'עצירה לא נמצאה בסיבוב זה', 404);
+
   if (reqStatus === 'FAILED') {
     const stop = await prisma.deliveryStop.update({
-      where: { id: req.params.stopId },
+      where: { id: existingStop.id },
       data: { status: 'FAILED', notes },
       include: { order: true },
     });
     return sendSuccess(res, stop);
   }
-
-  // Check if customer requires signature
-  const existingStop = await prisma.deliveryStop.findFirst({
-    where: { id: req.params.stopId },
-    include: { order: { include: { customer: true } } },
-  });
-  if (!existingStop) return sendError(res, 'עצירה לא נמצאה', 404);
 
   const metadata = (existingStop.order.customer?.metadata as any) || {};
   if (metadata.requireSignature && !signature) {

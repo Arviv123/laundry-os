@@ -52,7 +52,7 @@ router.post('/send-otp', asyncHandler(async (req: Request, res: Response) => {
   sendSuccess(res, {
     success: true,
     message: 'OTP sent',
-    ...(process.env.NODE_ENV !== 'production' ? { code } : {}),
+    ...(process.env.NODE_ENV === 'development' ? { code } : {}),
   });
 }));
 
@@ -140,10 +140,11 @@ router.get('/me', asyncHandler(async (req: Request, res: Response) => {
     return sendError(res, 'Unauthorized - not a customer token', 401);
   }
 
-  const customer = await prisma.customer.findUnique({
-    where: { id: payload.customerId },
+  const customer = await prisma.customer.findFirst({
+    where: { id: payload.customerId, tenantId: payload.tenantId },
     include: {
       laundryOrders: {
+        where: { tenantId: payload.tenantId },
         orderBy: { receivedAt: 'desc' },
         take: 10,
       },

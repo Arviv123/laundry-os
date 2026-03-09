@@ -66,8 +66,13 @@ router.post('/', requireMinRole('ADMIN') as any, asyncHandler(async (req: Authen
 
 router.patch('/:id', requireMinRole('ADMIN') as any, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const data = ServiceSchema.partial().parse(req.body);
+  const existing = await prisma.laundryService.findFirst({
+    where: { id: req.params.id, tenantId: req.user.tenantId },
+  });
+  if (!existing) return sendError(res, 'שירות לא נמצא', 404);
+
   const service = await prisma.laundryService.update({
-    where: { id: req.params.id },
+    where: { id: existing.id },
     data,
   });
   sendSuccess(res, service);
@@ -76,8 +81,13 @@ router.patch('/:id', requireMinRole('ADMIN') as any, asyncHandler(async (req: Au
 // ─── Deactivate Service ──────────────────────────────────────────
 
 router.delete('/:id', requireMinRole('ADMIN') as any, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const existing = await prisma.laundryService.findFirst({
+    where: { id: req.params.id, tenantId: req.user.tenantId },
+  });
+  if (!existing) return sendError(res, 'שירות לא נמצא', 404);
+
   const service = await prisma.laundryService.update({
-    where: { id: req.params.id },
+    where: { id: existing.id },
     data: { isActive: false },
   });
   sendSuccess(res, service);
