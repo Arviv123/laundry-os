@@ -11,7 +11,7 @@ import {
   BookOpen, LogOut, Menu, X, ChevronDown, ChevronLeft, Search, Command,
   Upload, Award, Percent, TrendingUp, QrCode, Gift, Columns3, Banknote,
   CreditCard, Receipt as ReceiptIcon, Zap, Tag, ClipboardList, Phone, Calendar,
-  Bell, RefreshCw, Radio, Landmark, DollarSign,
+  Bell, RefreshCw, Radio, Landmark, DollarSign, LifeBuoy,
 } from 'lucide-react';
 
 const NAV_SECTIONS = [
@@ -72,6 +72,7 @@ const NAV_SECTIONS = [
       { path: '/qr-links', label: 'קישורים ו-QR', icon: QrCode },
       { path: '/import', label: 'ייבוא נתונים', icon: Upload },
       { path: '/settings', label: 'הגדרות', icon: Settings },
+      { path: '/support', label: 'תמיכה', icon: LifeBuoy },
     ],
   },
 ];

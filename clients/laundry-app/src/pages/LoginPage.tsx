@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Shirt } from 'lucide-react';
 
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectTo = searchParams.get('redirect') || '/';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [tenantId, setTenantId] = useState('laundry-demo-tenant');
@@ -18,7 +20,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(email, password, tenantId);
-      navigate('/');
+      navigate(redirectTo);
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'שגיאת התחברות');
     } finally {

@@ -382,13 +382,11 @@ export default function OrderDetailPage() {
           <Send className="w-4 h-4" /> שלח ללקוח
         </button>
 
-        {/* Assign Driver */}
-        {order.deliveryType === 'HOME_DELIVERY' && (
-          <button onClick={() => setShowAssignModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 text-sm font-medium">
-            <Truck className="w-4 h-4" /> שייך נהג
-          </button>
-        )}
+        {/* Assign Driver — always available */}
+        <button onClick={() => setShowAssignModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 text-sm font-medium">
+          <Truck className="w-4 h-4" /> שייך נהג
+        </button>
 
         {/* Pay Button */}
         {!isPaid && (
@@ -444,13 +442,12 @@ export default function OrderDetailPage() {
         )}
       </div>
 
-      {/* Driver Assignment */}
-      {order.deliveryType === 'HOME_DELIVERY' && (
-        <div className="bg-white rounded-xl shadow-sm border p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold text-gray-700 flex items-center gap-2">
-              <Truck className="w-5 h-5 text-gray-400" /> שיוך נהג למשלוח
-            </h2>
+      {/* Driver Assignment — always available */}
+      <div className="bg-white rounded-xl shadow-sm border p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-semibold text-gray-700 flex items-center gap-2">
+            <Truck className="w-5 h-5 text-gray-400" /> שיוך נהג
+          </h2>
             <button onClick={() => setShowAssignModal(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 text-sm font-medium">
               <Plus className="w-4 h-4" /> שייך נהג
@@ -506,7 +503,6 @@ export default function OrderDetailPage() {
             <p className="text-sm text-gray-400 text-center py-3">לא שויך נהג עדיין</p>
           )}
         </div>
-      )}
 
       {/* Assign Driver Modal */}
       {showAssignModal && (

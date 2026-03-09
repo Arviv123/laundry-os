@@ -63,6 +63,9 @@ import auditRouter      from './modules/audit/audit.routes';
 // Routes — Client Error Logging
 import clientErrorsRouter from './modules/client-errors/client-errors.routes';
 
+// Routes — Public
+import publicTrackingRouter   from './modules/orders/public-tracking.routes';
+
 // Routes — Laundry-Specific
 import ordersRouter           from './modules/orders/orders.routes';
 import servicesCatalogRouter  from './modules/services-catalog/services.routes';
@@ -95,6 +98,9 @@ import billingRouter from './modules/billing/billing.routes';
 import tasksRouter from './modules/tasks/tasks.routes';
 import deliveryMgmtRouter from './modules/delivery-mgmt/delivery-mgmt.routes';
 import recurringOrdersRouter from './modules/delivery-mgmt/recurring-orders.routes';
+
+// Routes — Support
+import supportRouter from './modules/support/support.routes';
 
 // Swagger
 import { swaggerSpec } from './config/swagger';
@@ -167,6 +173,9 @@ app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 }));
 app.get('/api/docs.json', (_req, res) => res.json(swaggerSpec));
 
+// ─── Public Routes (no auth) ─────────────────────────────────
+app.use('/api/track', publicTrackingRouter);
+
 // ─── Platform Routes ──────────────────────────────────────────
 app.use('/api/platform', platformRouter);
 
@@ -208,6 +217,7 @@ app.use('/api/billing',          billingRouter);
 app.use('/api/tasks',            tasksRouter);
 app.use('/api/delivery-mgmt',    deliveryMgmtRouter);
 app.use('/api/delivery-mgmt',    recurringOrdersRouter);
+app.use('/api/support',          supportRouter);
 
 // ─── Sentry Error Handler ─────────────────────────────────────
 if (process.env.SENTRY_DSN) {

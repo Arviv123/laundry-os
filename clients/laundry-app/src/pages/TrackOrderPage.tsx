@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { STATUS_LABELS, STATUS_COLORS, STATUS_FLOW } from '../lib/constants';
-import api from '../lib/api';
+import axios from 'axios';
 import { Search, CheckCircle, Clock, Package, Phone, Shirt } from 'lucide-react';
+
+// Public API — no auth interceptor, won't redirect to login on 401
+const publicApi = axios.create({
+  baseURL: import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api',
+  headers: { 'Content-Type': 'application/json' },
+});
 
 export default function TrackOrderPage() {
   const [phone, setPhone] = useState('');
@@ -16,20 +22,18 @@ export default function TrackOrderPage() {
     setError('');
     setOrder(null);
     try {
-      // Try to find order by order number via public-ish endpoint
-      const res = await api.get('/orders', { params: { search: orderNumber.trim(), limit: 1 } });
-      const orders = res.data.data?.orders ?? [];
-      const found = orders.find((o: any) =>
-        o.orderNumber === orderNumber.trim() &&
-        (!phone || o.customer?.phone?.includes(phone))
-      );
+      const res = await publicApi.post('/track', {
+        orderNumber: orderNumber.trim(),
+        ...(phone ? { phone } : {}),
+      });
+      const found = res.data.data;
       if (found) {
         setOrder(found);
       } else {
         setError('הזמנה לא נמצאה. בדוק את מספר ההזמנה.');
       }
     } catch {
-      setError('שגיאה בחיפוש. נסה שוב.');
+      setError('הזמנה לא נמצאה. בדוק את מספר ההזמנה.');
     }
     setLoading(false);
   };
@@ -106,7 +110,7 @@ export default function TrackOrderPage() {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-xl font-bold text-gray-800">הזמנה {order.orderNumber}</h2>
-              <p className="text-gray-500 text-sm">{order.customer?.name}</p>
+              <p className="text-gray-500 text-sm">{order.customerName}</p>
             </div>
             <span className={`px-4 py-1.5 rounded-full text-sm font-bold ${STATUS_COLORS[order.status]}`}>
               {STATUS_LABELS[order.status]}

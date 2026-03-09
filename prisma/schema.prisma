@@ -359,6 +359,8 @@ model Tenant {
   tasks                 EmployeeTask[]
   deliveryAssignments   DeliveryAssignment[]
   recurringLaundryOrders RecurringLaundryOrder[]
+  // Support
+  supportTickets        SupportTicket[]
 
   @@map("tenants")
 }
@@ -4326,4 +4328,45 @@ model RecurringLaundryOrder {
   @@index([tenantId, status])
   @@index([tenantId, customerId])
   @@map("recurring_laundry_orders")
+}
+
+// ─────────────────────────────────────────────
+// SUPPORT TICKETS (טנאנט → בעל הפלטפורמה)
+// ─────────────────────────────────────────────
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model SupportTicket {
+  id          String         @id @default(cuid())
+  tenantId    String
+  userId      String
+  ticketNumber String        @unique
+  subject     String
+  description String         @db.Text
+  category    String         @default("general")
+  status      TicketStatus   @default(OPEN)
+  priority    TicketPriority @default(MEDIUM)
+  messages    Json           @default("[]") // [{ sender, senderType, message, createdAt }]
+  assignedTo  String?        // Platform admin ID
+  resolvedAt  DateTime?
+  closedAt    DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  tenant      Tenant         @relation(fields: [tenantId], references: [id])
+  @@index([tenantId, status])
+  @@index([status])
+  @@map("support_tickets")
 }

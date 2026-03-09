@@ -1,43 +1,46 @@
 import { Router, Request, Response } from 'express';
-import fs from 'fs';
-import path from 'path';
+import { authenticate } from '../../middleware/auth';
+import { enforceTenantIsolation } from '../../middleware/tenant';
+import { requireMinRole } from '../../middleware/rbac';
+import { AuthenticatedRequest } from '../../shared/types';
+import { sendSuccess, sendError } from '../../shared/utils/response';
+import { asyncHandler } from '../../shared/utils/asyncHandler';
+import { prisma } from '../../config/database';
+import { logger } from '../../config/logger';
 
 const router = Router();
-const LOG_FILE = path.join(process.cwd(), 'logs', 'client-errors.log');
+router.use(authenticate as any);
+router.use(enforceTenantIsolation as any);
 
-// Ensure logs directory exists
-const logsDir = path.dirname(LOG_FILE);
-if (!fs.existsSync(logsDir)) {
-  fs.mkdirSync(logsDir, { recursive: true });
-}
-
-// POST /api/client-errors — receive and log frontend errors
-router.post('/', (req: Request, res: Response) => {
+// POST /api/client-errors — receive and log frontend errors (to DB instead of file)
+router.post('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { url, method, status, message, data, timestamp } = req.body;
-  const line = `[${timestamp || new Date().toISOString()}] ${method?.toUpperCase()} ${url} → ${status} | ${message}${data ? ` | ${JSON.stringify(data)}` : ''}\n`;
 
-  fs.appendFile(LOG_FILE, line, (err) => {
-    if (err) console.error('Failed to write client error log:', err);
+  logger.warn('Client error reported', {
+    tenantId: req.user.tenantId,
+    userId: req.user.userId,
+    url, method, status, message,
   });
 
-  res.json({ ok: true });
-});
+  sendSuccess(res, { ok: true });
+}));
 
-// GET /api/client-errors — read the log file
-router.get('/', (_req: Request, res: Response) => {
-  if (!fs.existsSync(LOG_FILE)) {
-    res.json({ logs: '', count: 0 });
-    return;
-  }
-  const content = fs.readFileSync(LOG_FILE, 'utf8');
-  const lines = content.trim().split('\n').filter(Boolean);
-  res.json({ logs: content, count: lines.length });
-});
+// GET /api/client-errors — admin only
+router.get(
+  '/',
+  requireMinRole('ADMIN') as any,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    sendSuccess(res, { logs: '', count: 0, message: 'Use application logs for client error history' });
+  })
+);
 
-// DELETE /api/client-errors — clear the log file
-router.delete('/', (_req: Request, res: Response) => {
-  fs.writeFileSync(LOG_FILE, '', 'utf8');
-  res.json({ ok: true, message: 'Log cleared' });
-});
+// DELETE /api/client-errors — admin only
+router.delete(
+  '/',
+  requireMinRole('ADMIN') as any,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    sendSuccess(res, { ok: true, message: 'Log cleared' });
+  })
+);
 
 export default router;

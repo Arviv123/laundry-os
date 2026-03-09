@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
@@ -39,11 +39,13 @@ import RecurringOrdersPage from './pages/RecurringOrdersPage';
 import BankReconciliationPage from './pages/BankReconciliationPage';
 import CashFlowForecastPage from './pages/CashFlowForecastPage';
 import RFIDPage from './pages/RFIDPage';
+import SupportPage from './pages/SupportPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, isLoading } = useAuth();
+  const location = useLocation();
   if (isLoading) return <div className="h-screen flex items-center justify-center text-gray-400">טוען...</div>;
-  if (!token) return <Navigate to="/login" replace />;
+  if (!token) return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname)}`} replace />;
   return <>{children}</>;
 }
 
@@ -90,6 +92,7 @@ export default function App() {
         <Route path="bank-recon" element={<BankReconciliationPage />} />
         <Route path="cash-flow-forecast" element={<CashFlowForecastPage />} />
         <Route path="rfid" element={<RFIDPage />} />
+        <Route path="support" element={<SupportPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

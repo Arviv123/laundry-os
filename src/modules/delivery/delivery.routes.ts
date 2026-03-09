@@ -109,8 +109,13 @@ router.post('/runs', asyncHandler(async (req: AuthenticatedRequest, res: Respons
 // ─── Start Run ───────────────────────────────────────────────────
 
 router.patch('/runs/:id/start', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const existing = await prisma.deliveryRun.findFirst({
+    where: { id: req.params.id, tenantId: req.user.tenantId },
+  });
+  if (!existing) return sendError(res, 'סיבוב לא נמצא', 404);
+
   const run = await prisma.deliveryRun.update({
-    where: { id: req.params.id },
+    where: { id: existing.id },
     data: { status: 'IN_PROGRESS', startedAt: new Date() },
     include: { stops: { orderBy: { sortOrder: 'asc' } } },
   });
@@ -157,8 +162,13 @@ router.patch('/runs/:id/lock', asyncHandler(async (req: AuthenticatedRequest, re
   if (!['ADMIN', 'MANAGER', 'TENANT_ADMIN'].includes(req.user.role)) {
     return sendError(res, 'רק מנהל יכול לנעול סיבוב', 403);
   }
+  const existing = await prisma.deliveryRun.findFirst({
+    where: { id: req.params.id, tenantId: req.user.tenantId },
+  });
+  if (!existing) return sendError(res, 'סיבוב לא נמצא', 404);
+
   const run = await prisma.deliveryRun.update({
-    where: { id: req.params.id },
+    where: { id: existing.id },
     data: { isLocked: true },
   });
   sendSuccess(res, run);
@@ -170,8 +180,13 @@ router.patch('/runs/:id/unlock', asyncHandler(async (req: AuthenticatedRequest, 
   if (!['ADMIN', 'MANAGER', 'TENANT_ADMIN'].includes(req.user.role)) {
     return sendError(res, 'רק מנהל יכול לפתוח סיבוב', 403);
   }
+  const existing = await prisma.deliveryRun.findFirst({
+    where: { id: req.params.id, tenantId: req.user.tenantId },
+  });
+  if (!existing) return sendError(res, 'סיבוב לא נמצא', 404);
+
   const run = await prisma.deliveryRun.update({
-    where: { id: req.params.id },
+    where: { id: existing.id },
     data: { isLocked: false },
   });
   sendSuccess(res, run);
@@ -199,6 +214,12 @@ router.post('/runs/:id/stops/:stopId/navigate', asyncHandler(async (req: Authent
 // ─── Arrive at Stop ──────────────────────────────────────────────
 
 router.patch('/runs/:id/stops/:stopId/arrive', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  // Verify run belongs to tenant
+  const run = await prisma.deliveryRun.findFirst({
+    where: { id: req.params.id, tenantId: req.user.tenantId },
+  });
+  if (!run) return sendError(res, 'סיבוב לא נמצא', 404);
+
   const stop = await prisma.deliveryStop.update({
     where: { id: req.params.stopId },
     data: { status: 'ARRIVED' },
@@ -255,8 +276,13 @@ router.patch('/runs/:id/stops/:stopId', asyncHandler(async (req: AuthenticatedRe
 // ─── Complete Run ────────────────────────────────────────────────
 
 router.patch('/runs/:id/complete', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const existing = await prisma.deliveryRun.findFirst({
+    where: { id: req.params.id, tenantId: req.user.tenantId },
+  });
+  if (!existing) return sendError(res, 'סיבוב לא נמצא', 404);
+
   const run = await prisma.deliveryRun.update({
-    where: { id: req.params.id },
+    where: { id: existing.id },
     data: { status: 'COMPLETED_RUN', completedAt: new Date() },
     include: { stops: true },
   });

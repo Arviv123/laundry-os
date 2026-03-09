@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { authenticate } from '../../middleware/auth';
 import { enforceTenantIsolation } from '../../middleware/tenant';
+import { requireMinRole } from '../../middleware/rbac';
 import { AuthenticatedRequest } from '../../shared/types';
 import { sendSuccess, sendError } from '../../shared/utils/response';
 import { asyncHandler } from '../../shared/utils/asyncHandler';
@@ -50,8 +51,8 @@ router.get('/company', asyncHandler(async (req: AuthenticatedRequest, res) => {
   sendSuccess(res, tenant);
 }));
 
-// PATCH /settings/company — update company profile
-router.patch('/company', asyncHandler(async (req: AuthenticatedRequest, res) => {
+// PATCH /settings/company — update company profile (admin only)
+router.patch('/company', requireMinRole('ADMIN') as any, asyncHandler(async (req: AuthenticatedRequest, res) => {
   const body = CompanySettingsSchema.safeParse(req.body);
   if (!body.success) return sendError(res, body.error.message, 400);
 

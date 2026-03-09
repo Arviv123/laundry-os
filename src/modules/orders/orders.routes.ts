@@ -162,8 +162,15 @@ router.post('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =
 
 router.patch('/:id', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { notes, specialInstructions, promisedAt, deliveryType, deliveryAddress, deliveryFee } = req.body;
+
+  // Verify order belongs to tenant
+  const existing = await prisma.laundryOrder.findFirst({
+    where: { id: req.params.id, tenantId: req.user.tenantId },
+  });
+  if (!existing) return sendError(res, 'הזמנה לא נמצאה', 404);
+
   const updated = await prisma.laundryOrder.update({
-    where: { id: req.params.id },
+    where: { id: existing.id },
     data: {
       ...(notes !== undefined && { notes }),
       ...(specialInstructions !== undefined && { specialInstructions }),
@@ -293,6 +300,12 @@ router.post('/:id/items', asyncHandler(async (req: AuthenticatedRequest, res: Re
 // ─── Update Item ─────────────────────────────────────────────────
 
 router.patch('/:id/items/:itemId', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  // Verify order belongs to tenant
+  const order = await prisma.laundryOrder.findFirst({
+    where: { id: req.params.id, tenantId: req.user.tenantId },
+  });
+  if (!order) return sendError(res, 'הזמנה לא נמצאה', 404);
+
   const { description, specialNotes, color, brand } = req.body;
   const item = await prisma.laundryOrderItem.update({
     where: { id: req.params.itemId },
@@ -317,10 +330,15 @@ router.patch('/:id/items/:itemId/status', asyncHandler(async (req: Authenticated
 // ─── Delete Item ─────────────────────────────────────────────────
 
 router.delete('/:id/items/:itemId', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  // Verify order belongs to tenant
+  const order = await prisma.laundryOrder.findFirst({
+    where: { id: req.params.id, tenantId: req.user.tenantId },
+  });
+  if (!order) return sendError(res, 'הזמנה לא נמצאה', 404);
+
   await prisma.laundryOrderItem.delete({ where: { id: req.params.itemId } });
 
   // Recalculate totals
-  const order = await prisma.laundryOrder.findFirst({ where: { id: req.params.id } });
   if (order) {
     const allItems = await prisma.laundryOrderItem.findMany({ where: { orderId: order.id } });
     const subtotal = allItems.reduce((s, i) => s + Number(i.lineTotal), 0);

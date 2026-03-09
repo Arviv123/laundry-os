@@ -6,6 +6,7 @@ import { randomBytes } from 'crypto';
 import { authenticate } from '../../middleware/auth';
 import { enforceTenantIsolation, withTenant } from '../../middleware/tenant';
 import { requireMinRole } from '../../middleware/rbac';
+import { enforceMaxUsers } from '../../middleware/planEnforcement';
 import { AuthenticatedRequest } from '../../shared/types/index';
 import { sendSuccess, sendError } from '../../shared/utils/response';
 import { asyncHandler } from '../../shared/utils/asyncHandler';
@@ -68,6 +69,73 @@ router.post('/auth/login', asyncHandler(async (req, res: Response) => {
   });
 }));
 
+// ─── Password Reset (public — before auth middleware) ─────────────
+
+// POST /users/auth/forgot-password — request reset token
+router.post('/auth/forgot-password', forgotPasswordLimiter, asyncHandler(async (req: any, res: Response) => {
+  const schema = z.object({
+    email:    z.string().email(),
+    tenantId: z.string().min(1),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) { sendError(res, parsed.error.message); return; }
+
+  const user = await prisma.user.findFirst({
+    where: { email: parsed.data.email, tenantId: parsed.data.tenantId, isActive: true },
+  });
+
+  // Always return success to prevent email enumeration
+  if (!user) { sendSuccess(res, { message: 'If the email exists, a reset link was sent' }); return; }
+
+  // Invalidate old tokens
+  await prisma.passwordResetToken.updateMany({
+    where: { userId: user.id, usedAt: null },
+    data:  { usedAt: new Date() },
+  });
+
+  const token = randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+  await prisma.passwordResetToken.create({
+    data: { tenantId: user.tenantId, userId: user.id, token, expiresAt },
+  });
+
+  // In production: send email via sendgrid/resend/nodemailer
+  const isDev = (process.env.NODE_ENV ?? 'development') === 'development';
+  sendSuccess(res, {
+    message: 'If the email exists, a reset link was sent',
+    ...(isDev ? { devToken: token } : {}),
+  });
+}));
+
+// POST /users/auth/reset-password — use token to set new password
+router.post('/auth/reset-password', asyncHandler(async (req: any, res: Response) => {
+  const schema = z.object({
+    token:       z.string().min(1),
+    newPassword: z.string().min(8),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) { sendError(res, parsed.error.message); return; }
+
+  const resetToken = await prisma.passwordResetToken.findUnique({
+    where: { token: parsed.data.token },
+  });
+
+  if (!resetToken || resetToken.usedAt || resetToken.expiresAt < new Date()) {
+    sendError(res, 'Invalid or expired reset token', 400);
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(parsed.data.newPassword, 12);
+
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: resetToken.userId }, data: { passwordHash } }),
+    prisma.passwordResetToken.update({ where: { id: resetToken.id }, data: { usedAt: new Date() } }),
+  ]);
+
+  sendSuccess(res, { message: 'Password changed successfully' });
+}));
+
 // ─── Protected Routes ─────────────────────────────────────────────
 
 router.use(authenticate as any);
@@ -96,10 +164,11 @@ router.get('/me', async (req: AuthenticatedRequest, res: Response) => {
   sendSuccess(res, user);
 });
 
-// POST /users  (create new user)
+// POST /users  (create new user — enforces plan limit)
 router.post(
   '/',
   requireMinRole('ADMIN') as any,
+  enforceMaxUsers as any,
   async (req: AuthenticatedRequest, res: Response) => {
     const schema = z.object({
       email:     z.string().email(),
@@ -154,74 +223,6 @@ router.patch(
     sendSuccess(res, updated);
   }
 );
-
-// ─── Password Reset ───────────────────────────────────────────────
-
-// POST /users/auth/forgot-password — request reset token
-router.post('/auth/forgot-password', forgotPasswordLimiter, asyncHandler(async (req: any, res: Response) => {
-  const schema = z.object({
-    email:    z.string().email(),
-    tenantId: z.string().min(1),
-  });
-  const parsed = schema.safeParse(req.body);
-  if (!parsed.success) { sendError(res, parsed.error.message); return; }
-
-  const user = await prisma.user.findFirst({
-    where: { email: parsed.data.email, tenantId: parsed.data.tenantId, isActive: true },
-  });
-
-  // Always return success to prevent email enumeration
-  if (!user) { sendSuccess(res, { message: 'If the email exists, a reset link was sent' }); return; }
-
-  // Invalidate old tokens
-  await prisma.passwordResetToken.updateMany({
-    where: { userId: user.id, usedAt: null },
-    data:  { usedAt: new Date() },
-  });
-
-  const token = randomBytes(32).toString('hex');
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-
-  await prisma.passwordResetToken.create({
-    data: { tenantId: user.tenantId, userId: user.id, token, expiresAt },
-  });
-
-  // In production: send email via sendgrid/resend/nodemailer
-  // For now, return token directly (dev only)
-  const isDev = (process.env.NODE_ENV ?? 'development') === 'development';
-  sendSuccess(res, {
-    message: 'If the email exists, a reset link was sent',
-    ...(isDev ? { devToken: token } : {}),
-  });
-}));
-
-// POST /users/auth/reset-password — use token to set new password
-router.post('/auth/reset-password', asyncHandler(async (req: any, res: Response) => {
-  const schema = z.object({
-    token:       z.string().min(1),
-    newPassword: z.string().min(8),
-  });
-  const parsed = schema.safeParse(req.body);
-  if (!parsed.success) { sendError(res, parsed.error.message); return; }
-
-  const resetToken = await prisma.passwordResetToken.findUnique({
-    where: { token: parsed.data.token },
-  });
-
-  if (!resetToken || resetToken.usedAt || resetToken.expiresAt < new Date()) {
-    sendError(res, 'Invalid or expired reset token', 400);
-    return;
-  }
-
-  const passwordHash = await bcrypt.hash(parsed.data.newPassword, 12);
-
-  await prisma.$transaction([
-    prisma.user.update({ where: { id: resetToken.userId }, data: { passwordHash } }),
-    prisma.passwordResetToken.update({ where: { id: resetToken.id }, data: { usedAt: new Date() } }),
-  ]);
-
-  sendSuccess(res, { message: 'Password changed successfully' });
-}));
 
 // ─── Change Password (logged in) ──────────────────────────────────
 

@@ -1,9 +1,11 @@
 import { Router, Request, Response } from 'express';
+import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
 import { platformAuthenticate } from '../../middleware/platformAuth';
 import { asyncHandler } from '../../shared/utils/asyncHandler';
 import { sendSuccess, sendError } from '../../shared/utils/response';
 import { PlatformAdminRequest } from '../../shared/types';
+import { prisma } from '../../config/database';
 import * as svc from './platform.service';
 
 const router = Router();
@@ -153,6 +155,77 @@ router.patch('/admins/:id/activate', asyncHandler(async (req: Request, res: Resp
 router.get('/activity', asyncHandler(async (_req: Request, res: Response) => {
   const activity = await svc.getPlatformActivity();
   sendSuccess(res, activity);
+}));
+
+// ─── Support Tickets (Platform Admin manages) ────────────────────
+
+// List all tickets across tenants
+router.get('/support-tickets', asyncHandler(async (req: Request, res: Response) => {
+  const { status, tenantId } = req.query as any;
+  const where: any = {};
+  if (status) where.status = status;
+  if (tenantId) where.tenantId = tenantId;
+
+  const tickets = await prisma.supportTicket.findMany({
+    where,
+    include: { tenant: { select: { name: true } } },
+    orderBy: { createdAt: 'desc' },
+  });
+  sendSuccess(res, tickets);
+}));
+
+// Get single ticket
+router.get('/support-tickets/:id', asyncHandler(async (req: Request, res: Response) => {
+  const ticket = await prisma.supportTicket.findUnique({
+    where: { id: req.params.id },
+    include: { tenant: { select: { name: true, email: true, phone: true } } },
+  });
+  if (!ticket) return sendError(res, 'Ticket not found', 404);
+  sendSuccess(res, ticket);
+}));
+
+// Reply to ticket (platform admin)
+router.post('/support-tickets/:id/reply', asyncHandler(async (req: Request, res: Response) => {
+  const { message } = z.object({ message: z.string().min(1) }).parse(req.body);
+  const platformReq = req as PlatformAdminRequest;
+
+  const ticket = await prisma.supportTicket.findUnique({ where: { id: req.params.id } });
+  if (!ticket) return sendError(res, 'Ticket not found', 404);
+
+  const messages = Array.isArray(ticket.messages) ? (ticket.messages as any[]) : [];
+  messages.push({
+    sender: platformReq.platformAdmin?.email || 'Platform Admin',
+    senderType: 'platform',
+    message,
+    createdAt: new Date().toISOString(),
+  });
+
+  const updated = await prisma.supportTicket.update({
+    where: { id: ticket.id },
+    data: {
+      messages,
+      status: 'WAITING_FOR_CUSTOMER',
+      assignedTo: platformReq.platformAdmin?.adminId,
+    },
+  });
+  sendSuccess(res, updated);
+}));
+
+// Update ticket status
+router.patch('/support-tickets/:id/status', asyncHandler(async (req: Request, res: Response) => {
+  const { status } = z.object({
+    status: z.enum(['OPEN', 'IN_PROGRESS', 'WAITING_FOR_CUSTOMER', 'RESOLVED', 'CLOSED']),
+  }).parse(req.body);
+
+  const data: any = { status };
+  if (status === 'RESOLVED') data.resolvedAt = new Date();
+  if (status === 'CLOSED') data.closedAt = new Date();
+
+  const updated = await prisma.supportTicket.update({
+    where: { id: req.params.id },
+    data,
+  });
+  sendSuccess(res, updated);
 }));
 
 export default router;

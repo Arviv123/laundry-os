@@ -21,8 +21,13 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+      // Don't redirect from public pages
+      const publicPaths = ['/track', '/login'];
+      const isPublicPage = publicPaths.some(p => window.location.pathname.startsWith(p));
+      if (!isPublicPage) {
+        localStorage.removeItem('token');
+        window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+      }
     }
 
     // Log error to backend (fire-and-forget, skip logging for the log endpoint itself)

@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { authenticate } from '../../middleware/auth';
 import { enforceTenantIsolation } from '../../middleware/tenant';
+import { requireMinRole } from '../../middleware/rbac';
 import { AuthenticatedRequest } from '../../shared/types';
 import { sendSuccess, sendError } from '../../shared/utils/response';
 import { asyncHandler } from '../../shared/utils/asyncHandler';
@@ -100,8 +101,8 @@ router.delete('/:reportId/expenses/:expenseId', asyncHandler(async (req: Authent
   sendSuccess(res, { message: 'Expense deleted' });
 }));
 
-// ─── Approve / Reject report ────────────────────────────────
-router.patch('/:id/status', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+// ─── Approve / Reject report (admin/accountant only) ────────
+router.patch('/:id/status', requireMinRole('ACCOUNTANT') as any, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { status, rejectedReason } = req.body;
   if (!['APPROVED', 'REJECTED', 'SUBMITTED'].includes(status)) {
     return sendError(res, 'Invalid status', 400);
