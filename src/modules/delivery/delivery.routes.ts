@@ -133,7 +133,7 @@ router.patch('/runs/:id/reorder', asyncHandler(async (req: AuthenticatedRequest,
   if (!run) return sendError(res, 'סיבוב לא נמצא', 404);
 
   // If locked, only ADMIN/MANAGER can reorder
-  if (run.isLocked && !['ADMIN', 'MANAGER', 'TENANT_ADMIN'].includes(req.user.role)) {
+  if (run.isLocked && !['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
     return sendError(res, 'הסיבוב נעול — רק מנהל יכול לשנות סדר', 403);
   }
 
@@ -168,7 +168,7 @@ router.patch('/runs/:id/reorder', asyncHandler(async (req: AuthenticatedRequest,
 // ─── Lock Run ────────────────────────────────────────────────────
 
 router.patch('/runs/:id/lock', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  if (!['ADMIN', 'MANAGER', 'TENANT_ADMIN'].includes(req.user.role)) {
+  if (!['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
     return sendError(res, 'רק מנהל יכול לנעול סיבוב', 403);
   }
   const existing = await prisma.deliveryRun.findFirst({
@@ -186,7 +186,7 @@ router.patch('/runs/:id/lock', asyncHandler(async (req: AuthenticatedRequest, re
 // ─── Unlock Run ──────────────────────────────────────────────────
 
 router.patch('/runs/:id/unlock', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  if (!['ADMIN', 'MANAGER', 'TENANT_ADMIN'].includes(req.user.role)) {
+  if (!['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
     return sendError(res, 'רק מנהל יכול לפתוח סיבוב', 403);
   }
   const existing = await prisma.deliveryRun.findFirst({

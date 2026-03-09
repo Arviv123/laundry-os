@@ -306,9 +306,15 @@ router.patch('/:id/items/:itemId', asyncHandler(async (req: AuthenticatedRequest
   });
   if (!order) return sendError(res, 'הזמנה לא נמצאה', 404);
 
+  // Verify item belongs to this order
+  const existingItem = await prisma.laundryOrderItem.findFirst({
+    where: { id: req.params.itemId, orderId: order.id },
+  });
+  if (!existingItem) return sendError(res, 'פריט לא נמצא בהזמנה', 404);
+
   const { description, specialNotes, color, brand } = req.body;
   const item = await prisma.laundryOrderItem.update({
-    where: { id: req.params.itemId },
+    where: { id: existingItem.id },
     data: {
       ...(description !== undefined && { description }),
       ...(specialNotes !== undefined && { specialNotes }),
@@ -322,8 +328,14 @@ router.patch('/:id/items/:itemId', asyncHandler(async (req: AuthenticatedRequest
 // ─── Advance Item Status ─────────────────────────────────────────
 
 router.patch('/:id/items/:itemId/status', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  // Verify order belongs to tenant
+  const order = await prisma.laundryOrder.findFirst({
+    where: { id: req.params.id, tenantId: req.user.tenantId },
+  });
+  if (!order) return sendError(res, 'הזמנה לא נמצאה', 404);
+
   const { status } = StatusSchema.parse(req.body);
-  const item = await advanceItemStatus(req.params.itemId, req.params.id, status);
+  const item = await advanceItemStatus(req.params.itemId, order.id, status);
   sendSuccess(res, item);
 }));
 
@@ -336,7 +348,13 @@ router.delete('/:id/items/:itemId', asyncHandler(async (req: AuthenticatedReques
   });
   if (!order) return sendError(res, 'הזמנה לא נמצאה', 404);
 
-  await prisma.laundryOrderItem.delete({ where: { id: req.params.itemId } });
+  // Verify item belongs to this order
+  const existingItem = await prisma.laundryOrderItem.findFirst({
+    where: { id: req.params.itemId, orderId: order.id },
+  });
+  if (!existingItem) return sendError(res, 'פריט לא נמצא בהזמנה', 404);
+
+  await prisma.laundryOrderItem.delete({ where: { id: existingItem.id } });
 
   // Recalculate totals
   if (order) {

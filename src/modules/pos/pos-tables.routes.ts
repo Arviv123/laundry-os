@@ -423,8 +423,14 @@ router.put('/orders/:id/items/:itemId', asyncHandler(async (req: AuthenticatedRe
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) { sendError(res, parsed.error.message); return; }
 
+  // Verify order belongs to tenant
+  const order = await prisma.posOrder.findFirst({
+    where: withTenant(req, { id: req.params.id }),
+  });
+  if (!order) { sendError(res, 'Order not found', 404); return; }
+
   const item = await prisma.posOrderItem.findFirst({
-    where: { id: req.params.itemId, orderId: req.params.id },
+    where: { id: req.params.itemId, orderId: order.id },
   });
   if (!item) { sendError(res, 'Item not found', 404); return; }
 
@@ -444,11 +450,17 @@ router.put('/orders/:id/items/:itemId', asyncHandler(async (req: AuthenticatedRe
 
 // DELETE /pos/orders/:id/items/:itemId — cancel an item
 router.delete('/orders/:id/items/:itemId', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  // Verify order belongs to tenant
+  const order = await prisma.posOrder.findFirst({
+    where: withTenant(req, { id: req.params.id }),
+  });
+  if (!order) { sendError(res, 'Order not found', 404); return; }
+
   await prisma.posOrderItem.updateMany({
-    where: { id: req.params.itemId, orderId: req.params.id },
+    where: { id: req.params.itemId, orderId: order.id },
     data:  { status: 'CANCELLED' },
   });
-  await recalcOrderTotals(req.params.id);
+  await recalcOrderTotals(order.id);
   sendSuccess(res, { cancelled: true });
 }));
 

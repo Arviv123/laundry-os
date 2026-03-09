@@ -216,8 +216,14 @@ export async function advanceItemStatus(
   orderId: string,
   newStatus: string,
 ) {
+  // Verify item belongs to the order
+  const item = await prisma.laundryOrderItem.findFirst({
+    where: { id: itemId, orderId },
+  });
+  if (!item) throw new Error('פריט לא נמצא בהזמנה');
+
   const updated = await prisma.laundryOrderItem.update({
-    where: { id: itemId },
+    where: { id: item.id },
     data: {
       status: newStatus as any,
       stageUpdatedAt: new Date(),

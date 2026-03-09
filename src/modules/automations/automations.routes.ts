@@ -12,6 +12,7 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { authenticate } from '../../middleware/auth';
 import { enforceTenantIsolation } from '../../middleware/tenant';
+import { requireMinRole } from '../../middleware/rbac';
 import { AuthenticatedRequest } from '../../shared/types';
 import { sendSuccess, sendError } from '../../shared/utils/response';
 import { asyncHandler } from '../../shared/utils/asyncHandler';
@@ -24,6 +25,7 @@ const router = Router();
 // Apply auth and tenant guards to every route in this router
 router.use(authenticate as any);
 router.use(enforceTenantIsolation as any);
+router.use(requireMinRole('ADMIN') as any);
 
 // ─── Validation Schemas ──────────────────────────────────────────────────────
 

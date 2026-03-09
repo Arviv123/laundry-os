@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../contexts/ToastContext';
 import api from '../lib/api';
@@ -296,7 +296,7 @@ function RecurringOrderModal({ editId, customers, drivers, onClose, onSaved }: {
     enabled: !!editId,
   });
 
-  useState(() => {
+  useEffect(() => {
     if (existing) {
       setCustomerId(existing.customerId || '');
       setDaysOfWeek(existing.daysOfWeek || []);
@@ -313,7 +313,7 @@ function RecurringOrderModal({ editId, customers, drivers, onClose, onSaved }: {
       setInstructions(existing.instructions || '');
       setDriverId(existing.driverId || '');
     }
-  });
+  }, [existing]);
 
   const toggleDay = (day: number) => {
     setDaysOfWeek(prev => prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]);

@@ -720,7 +720,7 @@ export default function SettingsPage() {
                 <div className="space-y-2 text-sm text-gray-600">
                   <p>1. שלחו את הקישור ללקוח דרך WhatsApp או SMS</p>
                   <p>2. הלקוח מזין את מספר הטלפון שלו</p>
-                  <p>3. הלקוח מזין קוד אימות (קוד מאסטר: <span className="font-mono bg-gray-100 px-2 py-0.5 rounded">5252</span>)</p>
+                  <p>3. הלקוח מזין קוד אימות שנשלח אליו ב-WhatsApp</p>
                   <p>4. אם הלקוח קיים במערכת — נכנס ישירות. אם לא — נרשם אוטומטית</p>
                 </div>
               </div>

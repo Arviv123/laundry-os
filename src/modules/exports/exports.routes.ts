@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { authenticate } from '../../middleware/auth';
 import { enforceTenantIsolation } from '../../middleware/tenant';
+import { requireMinRole } from '../../middleware/rbac';
 import { AuthenticatedRequest } from '../../shared/types';
 import { sendError } from '../../shared/utils/response';
 import { asyncHandler } from '../../shared/utils/asyncHandler';
@@ -10,6 +11,7 @@ import * as XLSX from 'xlsx';
 const router = Router();
 router.use(authenticate as any);
 router.use(enforceTenantIsolation as any);
+router.use(requireMinRole('ADMIN') as any);
 
 function sendExcel(res: Response, data: any[], sheetName: string, fileName: string) {
   const wb = XLSX.utils.book_new();

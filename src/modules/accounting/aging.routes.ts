@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { authenticate } from '../../middleware/auth';
 import { enforceTenantIsolation, withTenant } from '../../middleware/tenant';
+import { requireMinRole } from '../../middleware/rbac';
 import { AuthenticatedRequest } from '../../shared/types';
 import { sendSuccess, sendError } from '../../shared/utils/response';
 import { asyncHandler } from '../../shared/utils/asyncHandler';
@@ -14,9 +15,10 @@ import {
 
 const router = Router();
 
-// All aging routes require authentication + tenant isolation
+// All aging routes require authentication + tenant isolation + ACCOUNTANT role
 router.use(authenticate as any);
 router.use(enforceTenantIsolation as any);
+router.use(requireMinRole('ACCOUNTANT') as any);
 
 // ─────────────────────────────────────────────
 // Helpers
