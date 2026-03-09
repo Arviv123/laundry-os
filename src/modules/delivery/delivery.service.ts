@@ -85,14 +85,24 @@ export async function completeStop(
 }
 
 export async function getPendingDeliveries(tenantId: string) {
+  // Orders waiting for pickup (any order that needs collection — not yet in process)
   const pickup = await prisma.laundryOrder.findMany({
-    where: { tenantId, source: 'PICKUP', status: 'RECEIVED' },
+    where: {
+      tenantId,
+      deliveryType: 'HOME_DELIVERY',
+      status: { in: ['RECEIVED', 'PENDING_PICKUP'] },
+    },
     include: { customer: true },
     orderBy: { receivedAt: 'asc' },
   });
 
+  // Orders ready for delivery to customer
   const delivery = await prisma.laundryOrder.findMany({
-    where: { tenantId, deliveryType: 'HOME_DELIVERY', status: 'READY' },
+    where: {
+      tenantId,
+      deliveryType: 'HOME_DELIVERY',
+      status: { in: ['READY', 'OUT_FOR_DELIVERY'] },
+    },
     include: { customer: true },
     orderBy: { completedAt: 'asc' },
   });

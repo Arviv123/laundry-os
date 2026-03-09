@@ -185,8 +185,16 @@ export default function Layout() {
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto">
-        {/* Top Bar with Notification Bell */}
+        {/* Top Bar with Mode Switches + Notification Bell */}
         <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-sm border-b border-gray-100 px-6 py-2 flex items-center justify-end gap-2">
+          <Link to="/delivery"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-100 transition-colors">
+            <Truck className="w-3.5 h-3.5" /> מצב נהג
+          </Link>
+          <a href="/track" target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-medium hover:bg-green-100 transition-colors">
+            <Users className="w-3.5 h-3.5" /> מצב לקוח
+          </a>
           <NotificationBell />
         </div>
         <Outlet />

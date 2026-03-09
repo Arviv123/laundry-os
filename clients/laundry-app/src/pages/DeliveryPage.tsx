@@ -5,14 +5,14 @@ import { useToast } from '../contexts/ToastContext';
 import api from '../lib/api';
 import {
   Truck, Package, MapPin, Phone, Navigation, Clock,
-  CheckCircle, User, ShoppingBag, ExternalLink,
+  CheckCircle, User, ExternalLink, Play,
 } from 'lucide-react';
 
 export default function DeliveryPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { addToast } = useToast();
-  const [activeTab, setActiveTab] = useState<'pickups' | 'deliveries' | 'runs'>('pickups');
+  const [activeTab, setActiveTab] = useState<'my-runs' | 'pickups' | 'deliveries' | 'runs'>('my-runs');
 
   const { data: pending, isLoading: loadingPending } = useQuery({
     queryKey: ['delivery-pending'],
@@ -20,9 +20,16 @@ export default function DeliveryPage() {
     refetchInterval: 30_000,
   });
 
+  const { data: myRuns, isLoading: loadingMyRuns } = useQuery({
+    queryKey: ['delivery-my-runs'],
+    queryFn: () => api.get('/delivery/runs/my').then(r => r.data.data),
+    refetchInterval: 15_000,
+  });
+
   const { data: runs, isLoading: loadingRuns } = useQuery({
     queryKey: ['delivery-runs'],
     queryFn: () => api.get('/delivery/runs').then(r => r.data.data),
+    enabled: activeTab === 'runs',
   });
 
   const statusMutation = useMutation({
@@ -38,6 +45,7 @@ export default function DeliveryPage() {
 
   const pickups = pending?.pendingPickups ?? [];
   const deliveries = pending?.pendingDeliveries ?? [];
+  const myRunsList = Array.isArray(myRuns) ? myRuns : [];
   const runsList = Array.isArray(runs) ? runs : [];
 
   const openNavigation = (address: string) => {
@@ -51,11 +59,16 @@ export default function DeliveryPage() {
 
   return (
     <div className="p-6 space-y-6 animate-fadeIn">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
           <Truck className="w-7 h-7 text-blue-600" /> משלוחים
         </h1>
-        <div className="flex gap-4 text-sm">
+        <div className="flex gap-3 text-sm">
+          <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-lg">
+            <Play className="w-4 h-4 text-blue-500" />
+            <span className="font-bold text-blue-700">{myRunsList.length}</span>
+            <span className="text-blue-600">סיבובים שלי</span>
+          </div>
           <div className="flex items-center gap-1.5 bg-orange-50 border border-orange-200 px-3 py-1.5 rounded-lg">
             <Package className="w-4 h-4 text-orange-500" />
             <span className="font-bold text-orange-700">{pickups.length}</span>
@@ -70,7 +83,13 @@ export default function DeliveryPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5 max-w-md">
+      <div className="flex gap-1 bg-gray-100 rounded-lg p-0.5">
+        <button onClick={() => setActiveTab('my-runs')}
+          className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            activeTab === 'my-runs' ? 'bg-white shadow-sm text-blue-700' : 'text-gray-500'
+          }`}>
+          <Play className="w-4 h-4" /> הסיבובים שלי ({myRunsList.length})
+        </button>
         <button onClick={() => setActiveTab('pickups')}
           className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
             activeTab === 'pickups' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500'
@@ -87,9 +106,65 @@ export default function DeliveryPage() {
           className={`flex-1 flex items-center justify-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
             activeTab === 'runs' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500'
           }`}>
-          <Truck className="w-4 h-4" /> סבבים ({runsList.length})
+          <Truck className="w-4 h-4" /> כל הסיבובים ({runsList.length})
         </button>
       </div>
+
+      {/* My Runs (Driver Mode) */}
+      {activeTab === 'my-runs' && (
+        <div className="space-y-3">
+          {loadingMyRuns ? <p className="text-gray-400">טוען...</p> : (
+            <>
+              {myRunsList.length > 0 ? myRunsList.map((run: any) => {
+                const completedStops = run.stops?.filter((s: any) => s.status === 'STOP_COMPLETED').length ?? 0;
+                const totalStops = run.stops?.length ?? 0;
+                return (
+                  <div key={run.id} onClick={() => navigate(`/delivery/run/${run.id}`)}
+                    className="bg-white rounded-xl shadow-sm border border-blue-200 p-5 cursor-pointer hover:shadow-md transition-shadow hover:border-blue-400">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                          <Truck className="w-6 h-6 text-blue-600" />
+                        </div>
+                        <div>
+                          <span className="font-bold text-lg">סיבוב משלוחים</span>
+                          <div className="text-sm text-gray-500">{new Date(run.date).toLocaleDateString('he-IL')}</div>
+                        </div>
+                      </div>
+                      <span className={`px-3 py-1.5 rounded-full text-xs font-bold ${
+                        run.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {run.status === 'IN_PROGRESS' ? 'בדרך' : 'מתוכנן'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm text-gray-500 mb-2">
+                      <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> {totalStops} עצירות</span>
+                      <span className="flex items-center gap-1"><CheckCircle className="w-3.5 h-3.5" /> {completedStops} הושלמו</span>
+                    </div>
+                    {totalStops > 0 && (
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-gray-200 rounded-full h-2">
+                          <div className="bg-green-500 h-2 rounded-full transition-all" style={{ width: `${(completedStops / totalStops) * 100}%` }} />
+                        </div>
+                        <span className="text-sm font-bold text-gray-600">{completedStops}/{totalStops}</span>
+                      </div>
+                    )}
+                    <div className="mt-3 text-sm text-blue-600 font-medium flex items-center gap-1">
+                      <ExternalLink className="w-3.5 h-3.5" /> לחץ לפתוח את הסיבוב
+                    </div>
+                  </div>
+                );
+              }) : (
+                <div className="text-center py-16 bg-white rounded-xl border">
+                  <Truck className="w-16 h-16 mx-auto mb-4 text-gray-200" />
+                  <p className="text-gray-500 text-lg font-medium mb-2">אין סיבובים פעילים</p>
+                  <p className="text-gray-400 text-sm">סיבובים שמוקצים לך יופיעו כאן</p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {/* Pickups */}
       {activeTab === 'pickups' && (
@@ -131,7 +206,7 @@ export default function DeliveryPage() {
         </div>
       )}
 
-      {/* Runs */}
+      {/* All Runs */}
       {activeTab === 'runs' && (
         <div className="space-y-3">
           {loadingRuns ? <p className="text-gray-400">טוען...</p> : (

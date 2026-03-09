@@ -47,6 +47,25 @@ router.get('/pending', asyncHandler(async (req: AuthenticatedRequest, res: Respo
   sendSuccess(res, pending);
 }));
 
+// ─── My Active Run (for driver mode) ────────────────────────────
+
+router.get('/runs/my', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  // Find runs where the driver is the current user
+  const runs = await prisma.deliveryRun.findMany({
+    where: {
+      tenantId: req.user.tenantId,
+      status: { in: ['PLANNED', 'IN_PROGRESS'] },
+      driverId: req.user.userId,
+    },
+    include: {
+      stops: { orderBy: { sortOrder: 'asc' }, include: { order: { include: { customer: true } } } },
+      driver: true,
+    },
+    orderBy: { date: 'desc' },
+  });
+  sendSuccess(res, runs);
+}));
+
 // ─── List Runs ───────────────────────────────────────────────────
 
 router.get('/runs', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
