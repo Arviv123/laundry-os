@@ -56,7 +56,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/track" element={<TrackOrderPage />} />
-      <Route path="/driver" element={<ProtectedRoute><DriverAppPage /></ProtectedRoute>} />
+      <Route path="/driver" element={<DriverAppPage />} />
       <Route path="/customer-app" element={<CustomerAppPage />} />
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index element={<DashboardPage />} />

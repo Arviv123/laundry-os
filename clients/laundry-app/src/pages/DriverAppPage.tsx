@@ -1,29 +1,89 @@
 /**
- * Driver Mini-App — אפליקציית נהג מלאה למובייל
+ * Driver Mini-App — אפליקציית נהג עצמאית למובייל
  * Route: /driver
  *
- * נהג מתחבר ורואה רק את הסיבובים שלו, ללא גישה לממשק הניהול.
- * כולל: סיבובים פעילים, סריקה, חתימות, ניווט, היסטוריה, סטטיסטיקות.
+ * אפליקציה עצמאית לחלוטין — לוגין משלה, API משלה, ללא תלות במערכת הניהול.
+ * נהג מתחבר עם אימייל + סיסמה + מזהה מכבסה ורואה רק את הסיבובים שלו.
  */
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '../contexts/AuthContext';
-import { useToast } from '../contexts/ToastContext';
-import api from '../lib/api';
+import axios from 'axios';
 import {
-  Truck, MapPin, Package, Navigation, CheckCircle, XCircle,
+  Truck, MapPin, Navigation, CheckCircle, XCircle,
   Play, ArrowRight, Phone, Clock, Scan, PenTool,
-  ChevronDown, ChevronUp, LogOut, RefreshCw, Home, History,
-  User, BarChart3, Calendar, Route, AlertTriangle,
+  ChevronDown, ChevronUp, LogOut, RefreshCw, History,
+  User, BarChart3, Calendar, Route, Mail, Lock, Building2,
 } from 'lucide-react';
+
+// ─── Standalone API (no dependency on main app auth) ────────────
+
+const driverApi = axios.create({
+  baseURL: import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api',
+  headers: { 'Content-Type': 'application/json' },
+});
+
+function getDriverToken(): string | null {
+  return localStorage.getItem('driver_token');
+}
+
+function driverHeaders() {
+  const t = getDriverToken();
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
+// ─── Types ──────────────────────────────────────────────────────
 
 type Tab = 'active' | 'history' | 'profile';
 
+interface DriverUser {
+  userId: string;
+  email: string;
+  name?: string;
+  role: string;
+  tenantId: string;
+}
+
+// ─── Main Component ─────────────────────────────────────────────
+
 export default function DriverAppPage() {
-  const { user, logout } = useAuth();
-  const queryClient = useQueryClient();
-  const { addToast } = useToast();
+  const [user, setUser] = useState<DriverUser | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('active');
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  // Check saved session
+  useEffect(() => {
+    const saved = getDriverToken();
+    const savedUser = localStorage.getItem('driver_user');
+    if (saved && savedUser) {
+      setToken(saved);
+      try { setUser(JSON.parse(savedUser)); } catch { handleLogout(); }
+    }
+  }, []);
+
+  const handleLogin = (t: string, u: DriverUser) => {
+    setToken(t);
+    setUser(u);
+    localStorage.setItem('driver_token', t);
+    localStorage.setItem('driver_user', JSON.stringify(u));
+  };
+
+  const handleLogout = () => {
+    setToken(null);
+    setUser(null);
+    localStorage.removeItem('driver_token');
+    localStorage.removeItem('driver_user');
+    setTab('active');
+  };
+
+  const refresh = () => setRefreshKey(k => k + 1);
+
+  // ─── Login Screen ───────────────────────────────────────────
+
+  if (!token || !user) {
+    return <DriverLoginScreen onLogin={handleLogin} />;
+  }
+
+  // ─── App Shell ──────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20" dir="rtl">
@@ -35,11 +95,11 @@ export default function DriverAppPage() {
               <Truck className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="font-bold text-lg leading-tight">נהג — LaundryOS</h1>
-              <p className="text-blue-200 text-xs">{user?.email}</p>
+              <h1 className="font-bold text-lg leading-tight">שלום, {user.name || 'נהג'}</h1>
+              <p className="text-blue-200 text-xs">{user.email}</p>
             </div>
           </div>
-          <button onClick={() => queryClient.invalidateQueries({ queryKey: ['driver-my-runs'] })}
+          <button onClick={refresh}
             className="p-2 hover:bg-white/20 rounded-xl transition-colors">
             <RefreshCw className="w-5 h-5" />
           </button>
@@ -48,9 +108,9 @@ export default function DriverAppPage() {
 
       {/* Content */}
       <div className="max-w-lg mx-auto">
-        {tab === 'active' && <ActiveTab />}
-        {tab === 'history' && <HistoryTab />}
-        {tab === 'profile' && <ProfileTab user={user} onLogout={logout} />}
+        {tab === 'active' && <ActiveTab key={`active-${refreshKey}`} />}
+        {tab === 'history' && <HistoryTab key={`history-${refreshKey}`} />}
+        {tab === 'profile' && <ProfileTab user={user} onLogout={handleLogout} />}
       </div>
 
       {/* Bottom Tab Bar */}
@@ -75,54 +135,158 @@ export default function DriverAppPage() {
   );
 }
 
+// ─── Driver Login Screen ──────────────────────────────────────
+
+function DriverLoginScreen({ onLogin }: { onLogin: (token: string, user: DriverUser) => void }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [tenantId, setTenantId] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // Get tenant from URL params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const t = params.get('tenant');
+    if (t) setTenantId(t);
+  }, []);
+
+  const handleSubmit = async () => {
+    if (!email.trim() || !password.trim() || !tenantId.trim()) return;
+    setLoading(true);
+    setError('');
+    try {
+      const res = await driverApi.post('/users/login', {
+        email: email.trim(),
+        password: password.trim(),
+        tenantId: tenantId.trim(),
+      });
+      const { token: t, user: u } = res.data.data;
+      onLogin(t, u);
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'שגיאת התחברות');
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 flex flex-col items-center justify-center p-4" dir="rtl">
+      <div className="mb-8 text-center">
+        <div className="w-20 h-20 bg-gradient-to-br from-blue-600 to-blue-800 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-xl shadow-blue-200">
+          <Truck className="w-10 h-10 text-white" />
+        </div>
+        <h1 className="text-3xl font-extrabold text-gray-800">LaundryOS</h1>
+        <p className="text-gray-500 mt-1 text-sm">אפליקציית נהג</p>
+      </div>
+
+      <div className="bg-white rounded-3xl shadow-2xl shadow-blue-100 p-8 w-full max-w-md">
+        <h2 className="text-xl font-bold text-gray-800 mb-6 text-center">התחברות נהג</h2>
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium text-gray-600 mb-1 block">מזהה מכבסה</label>
+            <div className="relative">
+              <Building2 className="absolute right-4 top-4 w-5 h-5 text-gray-400" />
+              <input type="text" value={tenantId} onChange={e => setTenantId(e.target.value)}
+                placeholder="מזהה או שם המכבסה"
+                className="w-full pr-12 pl-4 py-3.5 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-gray-50" />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-600 mb-1 block">אימייל</label>
+            <div className="relative">
+              <Mail className="absolute right-4 top-4 w-5 h-5 text-gray-400" />
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="driver@example.com"
+                className="w-full pr-12 pl-4 py-3.5 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-gray-50" />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-600 mb-1 block">סיסמה</label>
+            <div className="relative">
+              <Lock className="absolute right-4 top-4 w-5 h-5 text-gray-400" />
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                placeholder="הזן סיסמה"
+                className="w-full pr-12 pl-4 py-3.5 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-gray-50" />
+            </div>
+          </div>
+
+          {error && <p className="text-red-500 text-sm text-center bg-red-50 py-2 rounded-xl">{error}</p>}
+
+          <button onClick={handleSubmit} disabled={loading || !email.trim() || !password.trim() || !tenantId.trim()}
+            className="w-full py-4 bg-gradient-to-r from-blue-600 to-blue-800 text-white rounded-2xl font-bold text-lg hover:from-blue-700 hover:to-blue-900 disabled:opacity-40 shadow-lg shadow-blue-200 transition-all active:scale-[0.98]">
+            {loading ? 'מתחבר...' : 'כניסה'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Toast (lightweight, no dependency on main app) ─────────
+
+function useDriverToast() {
+  const [msg, setMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const show = useCallback((text: string, type: 'success' | 'error' = 'success') => {
+    setMsg({ text, type });
+    setTimeout(() => setMsg(null), 3000);
+  }, []);
+  const Toast = msg ? (
+    <div className={`fixed top-20 left-1/2 -translate-x-1/2 z-[60] px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium animate-bounce ${
+      msg.type === 'error' ? 'bg-red-600' : 'bg-green-600'
+    }`} dir="rtl">{msg.text}</div>
+  ) : null;
+  return { show, Toast };
+}
+
 // ─── Active Runs Tab ──────────────────────────────────────────
 
 function ActiveTab() {
-  const queryClient = useQueryClient();
-  const { addToast } = useToast();
+  const { show, Toast } = useDriverToast();
+  const [runs, setRuns] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
 
-  const { data: myRuns, isLoading } = useQuery({
-    queryKey: ['driver-my-runs'],
-    queryFn: () => api.get('/delivery/runs/my').then(r => r.data.data),
-    refetchInterval: 15_000,
-  });
+  const fetchRuns = useCallback(async () => {
+    try {
+      const res = await driverApi.get('/delivery/runs/my', { headers: driverHeaders() });
+      const data = Array.isArray(res.data.data) ? res.data.data : [];
+      setRuns(data);
+      if (!activeRunId && data.length > 0) {
+        const ip = data.find((r: any) => r.status === 'IN_PROGRESS');
+        setActiveRunId(ip?.id || data[0]?.id);
+      }
+    } catch {}
+    setLoading(false);
+  }, []);
 
-  const runsList = Array.isArray(myRuns) ? myRuns : [];
-  const activeRun = runsList.find((r: any) => r.id === activeRunId) || null;
+  useEffect(() => { fetchRuns(); const i = setInterval(fetchRuns, 15_000); return () => clearInterval(i); }, [fetchRuns]);
 
-  useEffect(() => {
-    if (!activeRunId && runsList.length > 0) {
-      const inProgress = runsList.find((r: any) => r.status === 'IN_PROGRESS');
-      setActiveRunId(inProgress?.id || runsList[0]?.id);
-    }
-  }, [runsList, activeRunId]);
+  const activeRun = runs.find(r => r.id === activeRunId) || null;
 
-  const startMutation = useMutation({
-    mutationFn: (runId: string) => api.patch(`/delivery/runs/${runId}/start`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['driver-my-runs'] }); addToast('הסיבוב התחיל!'); },
-    onError: () => addToast('שגיאה', 'error'),
-  });
+  const startRun = async (runId: string) => {
+    try { await driverApi.patch(`/delivery/runs/${runId}/start`, {}, { headers: driverHeaders() }); show('הסיבוב התחיל!'); fetchRuns(); }
+    catch { show('שגיאה', 'error'); }
+  };
 
-  const completeMutation = useMutation({
-    mutationFn: (runId: string) => api.patch(`/delivery/runs/${runId}/complete`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['driver-my-runs'] }); addToast('הסיבוב הושלם!'); },
-    onError: () => addToast('שגיאה', 'error'),
-  });
+  const completeRun = async (runId: string) => {
+    try { await driverApi.patch(`/delivery/runs/${runId}/complete`, {}, { headers: driverHeaders() }); show('הסיבוב הושלם!'); fetchRuns(); }
+    catch { show('שגיאה', 'error'); }
+  };
 
-  if (isLoading) {
-    return <div className="p-4 text-center py-20 text-gray-400">טוען סיבובים...</div>;
-  }
+  if (loading) return <div className="p-4 text-center py-20 text-gray-400">טוען סיבובים...</div>;
 
   return (
     <div className="p-4 space-y-4">
+      {Toast}
+
       {/* Today Summary */}
-      <TodaySummary runs={runsList} />
+      <TodaySummary runs={runs} />
 
       {/* Run Selector */}
-      {runsList.length > 1 && (
+      {runs.length > 1 && (
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
-          {runsList.map((run: any) => {
+          {runs.map((run: any) => {
             const completed = run.stops?.filter((s: any) => s.status === 'STOP_COMPLETED').length ?? 0;
             const total = run.stops?.length ?? 0;
             return (
@@ -144,7 +308,7 @@ function ActiveTab() {
       )}
 
       {/* No Runs */}
-      {runsList.length === 0 && (
+      {runs.length === 0 && (
         <div className="text-center py-16 bg-white rounded-2xl border">
           <Truck className="w-16 h-16 mx-auto text-gray-200 mb-4" />
           <h2 className="text-lg font-bold text-gray-500 mb-2">אין סיבובים פעילים</h2>
@@ -156,10 +320,10 @@ function ActiveTab() {
       {activeRun && (
         <DriverRunView
           run={activeRun}
-          onStart={() => startMutation.mutate(activeRun.id)}
-          onComplete={() => completeMutation.mutate(activeRun.id)}
-          isStarting={startMutation.isPending}
-          isCompleting={completeMutation.isPending}
+          onStart={() => startRun(activeRun.id)}
+          onComplete={() => completeRun(activeRun.id)}
+          onRefresh={fetchRuns}
+          toast={show}
         />
       )}
     </div>
@@ -193,11 +357,10 @@ function TodaySummary({ runs }: { runs: any[] }) {
 
 // ─── Run View ─────────────────────────────────────────────────
 
-function DriverRunView({ run, onStart, onComplete, isStarting, isCompleting }: {
-  run: any; onStart: () => void; onComplete: () => void; isStarting: boolean; isCompleting: boolean;
+function DriverRunView({ run, onStart, onComplete, onRefresh, toast }: {
+  run: any; onStart: () => void; onComplete: () => void;
+  onRefresh: () => void; toast: (msg: string, type?: 'success' | 'error') => void;
 }) {
-  const queryClient = useQueryClient();
-  const { addToast } = useToast();
   const [showScan, setShowScan] = useState(false);
   const [scanInput, setScanInput] = useState('');
   const [showSignature, setShowSignature] = useState<string | null>(null);
@@ -210,51 +373,50 @@ function DriverRunView({ run, onStart, onComplete, isStarting, isCompleting }: {
   const allDone = (completedStops + failedStops) === totalStops && totalStops > 0;
   const progress = totalStops > 0 ? (completedStops / totalStops) * 100 : 0;
 
-  const navigateMutation = useMutation({
-    mutationFn: (stopId: string) => api.post(`/delivery/runs/${run.id}/stops/${stopId}/navigate`),
-    onSuccess: (res) => {
+  const navigate = async (stopId: string) => {
+    try {
+      const res = await driverApi.post(`/delivery/runs/${run.id}/stops/${stopId}/navigate`, {}, { headers: driverHeaders() });
       window.open(res.data.data.wazeUrl, '_blank');
-      addToast('WhatsApp נשלח ללקוח');
-      queryClient.invalidateQueries({ queryKey: ['driver-my-runs'] });
-    },
-    onError: () => addToast('שגיאה', 'error'),
-  });
+      toast('WhatsApp נשלח ללקוח');
+      onRefresh();
+    } catch { toast('שגיאה', 'error'); }
+  };
 
-  const arriveMutation = useMutation({
-    mutationFn: (stopId: string) => api.patch(`/delivery/runs/${run.id}/stops/${stopId}/arrive`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['driver-my-runs'] }); addToast('סומן כהגעה'); },
-    onError: () => addToast('שגיאה', 'error'),
-  });
+  const arrive = async (stopId: string) => {
+    try {
+      await driverApi.patch(`/delivery/runs/${run.id}/stops/${stopId}/arrive`, {}, { headers: driverHeaders() });
+      toast('סומן כהגעה');
+      onRefresh();
+    } catch { toast('שגיאה', 'error'); }
+  };
 
-  const completeStopMutation = useMutation({
-    mutationFn: ({ stopId, signature }: { stopId: string; signature?: string }) =>
-      api.patch(`/delivery/runs/${run.id}/stops/${stopId}`, { signature }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['driver-my-runs'] });
-      addToast('הושלם');
+  const completeStop = async (stopId: string, signature?: string) => {
+    try {
+      await driverApi.patch(`/delivery/runs/${run.id}/stops/${stopId}`, { signature }, { headers: driverHeaders() });
+      toast('הושלם');
       setShowSignature(null);
-    },
-    onError: (err: any) => addToast(err.response?.data?.error || 'שגיאה', 'error'),
-  });
+      onRefresh();
+    } catch (err: any) { toast(err.response?.data?.error || 'שגיאה', 'error'); }
+  };
 
-  const failStopMutation = useMutation({
-    mutationFn: ({ stopId, notes }: { stopId: string; notes: string }) =>
-      api.patch(`/delivery/runs/${run.id}/stops/${stopId}`, { status: 'FAILED', notes }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['driver-my-runs'] }); addToast('סומן כנכשל'); },
-    onError: () => addToast('שגיאה', 'error'),
-  });
+  const failStop = async (stopId: string, notes: string) => {
+    try {
+      await driverApi.patch(`/delivery/runs/${run.id}/stops/${stopId}`, { status: 'FAILED', notes }, { headers: driverHeaders() });
+      toast('סומן כנכשל');
+      onRefresh();
+    } catch { toast('שגיאה', 'error'); }
+  };
 
-  const scanMutation = useMutation({
-    mutationFn: (barcode: string) => api.post(`/delivery/runs/${run.id}/scan`, { barcode }),
-    onSuccess: (res) => {
+  const scan = async (barcode: string) => {
+    try {
+      const res = await driverApi.post(`/delivery/runs/${run.id}/scan`, { barcode }, { headers: driverHeaders() });
       const { stop } = res.data.data;
       setHighlightedStopId(stop.id);
-      addToast(`נמצא: ${stop.order?.customer?.name || 'לקוח'}`);
+      toast(`נמצא: ${stop.order?.customer?.name || 'לקוח'}`);
       setTimeout(() => setHighlightedStopId(null), 5000);
       document.getElementById(`driver-stop-${stop.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    },
-    onError: () => addToast('פריט לא נמצא בסיבוב', 'error'),
-  });
+    } catch { toast('פריט לא נמצא בסיבוב', 'error'); }
+  };
 
   return (
     <>
@@ -269,7 +431,6 @@ function DriverRunView({ run, onStart, onComplete, isStarting, isCompleting }: {
             <p className="text-sm text-gray-500 flex items-center gap-1 mt-1">
               <Calendar className="w-3.5 h-3.5" />
               {new Date(run.date).toLocaleDateString('he-IL')}
-              {run.driver?.name && <span> — {run.driver.name}</span>}
             </p>
           </div>
           <span className={`px-3 py-1.5 rounded-full text-xs font-bold ${
@@ -293,14 +454,14 @@ function DriverRunView({ run, onStart, onComplete, isStarting, isCompleting }: {
         {/* Action Buttons */}
         <div className="flex gap-2">
           {run.status === 'PLANNED' && (
-            <button onClick={onStart} disabled={isStarting}
-              className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-blue-200 disabled:opacity-50 active:scale-[0.98] transition-all">
+            <button onClick={onStart}
+              className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-blue-200 active:scale-[0.98] transition-all">
               <Play className="w-5 h-5" /> התחל סיבוב
             </button>
           )}
           {run.status === 'IN_PROGRESS' && allDone && (
-            <button onClick={onComplete} disabled={isCompleting}
-              className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-green-600 to-green-700 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-green-200 disabled:opacity-50 active:scale-[0.98] transition-all">
+            <button onClick={onComplete}
+              className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-green-600 to-green-700 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-green-200 active:scale-[0.98] transition-all">
               <CheckCircle className="w-5 h-5" /> סיים סיבוב
             </button>
           )}
@@ -320,11 +481,11 @@ function DriverRunView({ run, onStart, onComplete, isStarting, isCompleting }: {
           <div className="flex gap-2">
             <input ref={scanRef} type="text" value={scanInput}
               onChange={e => setScanInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && scanInput.trim()) { scanMutation.mutate(scanInput.trim()); setScanInput(''); } }}
+              onKeyDown={e => { if (e.key === 'Enter' && scanInput.trim()) { scan(scanInput.trim()); setScanInput(''); } }}
               placeholder="סרוק ברקוד או הקלד..."
               className="flex-1 border border-purple-300 rounded-xl px-4 py-3 text-lg focus:ring-2 focus:ring-purple-500 outline-none bg-white"
               autoComplete="off" />
-            <button onClick={() => { if (scanInput.trim()) { scanMutation.mutate(scanInput.trim()); setScanInput(''); } }}
+            <button onClick={() => { if (scanInput.trim()) { scan(scanInput.trim()); setScanInput(''); } }}
               disabled={!scanInput.trim()}
               className="bg-purple-600 text-white px-5 rounded-xl hover:bg-purple-700 disabled:opacity-40 font-bold active:scale-[0.95] transition-all">
               חפש
@@ -342,15 +503,15 @@ function DriverRunView({ run, onStart, onComplete, isStarting, isCompleting }: {
             index={i}
             isHighlighted={highlightedStopId === stop.id}
             isActive={run.status === 'IN_PROGRESS'}
-            onNavigate={() => navigateMutation.mutate(stop.id)}
-            onArrive={() => arriveMutation.mutate(stop.id)}
+            onNavigate={() => navigate(stop.id)}
+            onArrive={() => arrive(stop.id)}
             onComplete={() => {
               const requiresSig = (stop.order?.customer?.metadata as any)?.requireSignature;
               if (requiresSig) { setShowSignature(stop.id); }
-              else { completeStopMutation.mutate({ stopId: stop.id }); }
+              else { completeStop(stop.id); }
             }}
             onSign={() => setShowSignature(stop.id)}
-            onFail={(notes) => failStopMutation.mutate({ stopId: stop.id, notes })}
+            onFail={(notes) => failStop(stop.id, notes)}
           />
         ))}
       </div>
@@ -359,8 +520,7 @@ function DriverRunView({ run, onStart, onComplete, isStarting, isCompleting }: {
       {showSignature && (
         <SignatureModal
           onClose={() => setShowSignature(null)}
-          onConfirm={(sig) => completeStopMutation.mutate({ stopId: showSignature, signature: sig })}
-          isPending={completeStopMutation.isPending}
+          onConfirm={(sig) => completeStop(showSignature, sig)}
         />
       )}
     </>
@@ -399,7 +559,6 @@ function DriverStopCard({ stop, index, isHighlighted, isActive, onNavigate, onAr
       } ${isDone ? 'opacity-60' : ''}`}>
       <div className="p-4">
         <div className="flex items-start gap-3">
-          {/* Number/Status Circle */}
           <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 ${
             stop.status === 'FAILED' ? 'bg-red-100 text-red-600' :
             isDone ? 'bg-green-100 text-green-600' :
@@ -437,24 +596,23 @@ function DriverStopCard({ stop, index, isHighlighted, isActive, onNavigate, onAr
           </button>
         </div>
 
-        {/* Action Buttons */}
         {isActive && !isDone && (
           <div className="flex gap-2 mt-3 flex-wrap">
             {addressStr && (
               <button onClick={onNavigate}
-                className="flex items-center gap-1.5 px-4 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-medium shadow-sm hover:bg-purple-700 active:scale-[0.96] transition-all">
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-medium shadow-sm active:scale-[0.96] transition-all">
                 <Navigation className="w-4 h-4" /> נווט
               </button>
             )}
             {phone && (
               <button onClick={() => window.open(`tel:${phone}`, '_self')}
-                className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-50 text-blue-700 rounded-xl text-sm font-medium hover:bg-blue-100">
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-50 text-blue-700 rounded-xl text-sm font-medium">
                 <Phone className="w-4 h-4" /> חייג
               </button>
             )}
             {stop.status === 'STOP_PENDING' && (
               <button onClick={onArrive}
-                className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium shadow-sm hover:bg-blue-700 active:scale-[0.96] transition-all">
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium shadow-sm active:scale-[0.96] transition-all">
                 <ArrowRight className="w-4 h-4" /> הגעתי
               </button>
             )}
@@ -462,17 +620,17 @@ function DriverStopCard({ stop, index, isHighlighted, isActive, onNavigate, onAr
               <>
                 {requiresSig ? (
                   <button onClick={onSign}
-                    className="flex items-center gap-1.5 px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-medium shadow-sm hover:bg-green-700 active:scale-[0.96] transition-all">
+                    className="flex items-center gap-1.5 px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-medium shadow-sm active:scale-[0.96] transition-all">
                     <PenTool className="w-4 h-4" /> חתום ומסור
                   </button>
                 ) : (
                   <button onClick={onComplete}
-                    className="flex items-center gap-1.5 px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-medium shadow-sm hover:bg-green-700 active:scale-[0.96] transition-all">
+                    className="flex items-center gap-1.5 px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-medium shadow-sm active:scale-[0.96] transition-all">
                     <CheckCircle className="w-4 h-4" /> הושלם
                   </button>
                 )}
                 <button onClick={() => setShowFail(true)}
-                  className="flex items-center gap-1.5 px-4 py-2.5 bg-red-50 text-red-600 rounded-xl text-sm font-medium hover:bg-red-100">
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-red-50 text-red-600 rounded-xl text-sm font-medium">
                   <XCircle className="w-4 h-4" /> נכשל
                 </button>
               </>
@@ -481,7 +639,6 @@ function DriverStopCard({ stop, index, isHighlighted, isActive, onNavigate, onAr
         )}
       </div>
 
-      {/* Expanded Details */}
       {expanded && (
         <div className="border-t px-4 py-3 text-sm bg-gray-50/50 rounded-b-2xl space-y-1.5">
           {stop.order?.items?.map((item: any) => (
@@ -500,7 +657,6 @@ function DriverStopCard({ stop, index, isHighlighted, isActive, onNavigate, onAr
         </div>
       )}
 
-      {/* Fail Form */}
       {showFail && (
         <div className="border-t px-4 py-3 bg-red-50/50 rounded-b-2xl">
           <textarea value={failNotes} onChange={e => setFailNotes(e.target.value)}
@@ -508,7 +664,7 @@ function DriverStopCard({ stop, index, isHighlighted, isActive, onNavigate, onAr
             className="w-full border border-red-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-red-500 outline-none" />
           <div className="flex gap-2 mt-2">
             <button onClick={() => { onFail(failNotes); setShowFail(false); setFailNotes(''); }}
-              className="px-4 py-2.5 bg-red-600 text-white rounded-xl text-sm font-bold hover:bg-red-700">אשר</button>
+              className="px-4 py-2.5 bg-red-600 text-white rounded-xl text-sm font-bold">אשר</button>
             <button onClick={() => { setShowFail(false); setFailNotes(''); }}
               className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl text-sm">ביטול</button>
           </div>
@@ -529,7 +685,7 @@ function HistoryTab() {
   const fetchHistory = useCallback(async (p = 1) => {
     setLoading(true);
     try {
-      const res = await api.get(`/delivery/runs/my/history?page=${p}&limit=15`);
+      const res = await driverApi.get(`/delivery/runs/my/history?page=${p}&limit=15`, { headers: driverHeaders() });
       const data = res.data.data;
       setRuns(data.runs || []);
       setTotalPages(data.totalPages || 1);
@@ -600,12 +756,16 @@ function HistoryTab() {
 
 // ─── Profile Tab ──────────────────────────────────────────────
 
-function ProfileTab({ user, onLogout }: { user: any; onLogout: () => void }) {
-  const { data: stats, isLoading } = useQuery({
-    queryKey: ['driver-stats'],
-    queryFn: () => api.get('/delivery/runs/my/stats').then(r => r.data.data),
-    staleTime: 60_000,
-  });
+function ProfileTab({ user, onLogout }: { user: DriverUser; onLogout: () => void }) {
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    driverApi.get('/delivery/runs/my/stats', { headers: driverHeaders() })
+      .then(res => setStats(res.data.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <div className="p-4 space-y-4">
@@ -614,8 +774,8 @@ function ProfileTab({ user, onLogout }: { user: any; onLogout: () => void }) {
         <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full flex items-center justify-center mx-auto mb-4">
           <User className="w-10 h-10 text-blue-600" />
         </div>
-        <h2 className="text-xl font-bold text-gray-800">{user?.name || user?.email || 'נהג'}</h2>
-        <p className="text-gray-500 text-sm">{user?.email}</p>
+        <h2 className="text-xl font-bold text-gray-800">{user.name || 'נהג'}</h2>
+        <p className="text-gray-500 text-sm">{user.email}</p>
         <span className="inline-block mt-2 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">נהג</span>
       </div>
 
@@ -625,7 +785,7 @@ function ProfileTab({ user, onLogout }: { user: any; onLogout: () => void }) {
           <BarChart3 className="w-5 h-5 text-blue-600" />
           סטטיסטיקות
         </h3>
-        {isLoading ? (
+        {loading ? (
           <div className="text-center py-4 text-gray-400">טוען...</div>
         ) : (
           <div className="grid grid-cols-3 gap-3">
@@ -657,8 +817,8 @@ function ProfileTab({ user, onLogout }: { user: any; onLogout: () => void }) {
 
 // ─── Signature Modal ──────────────────────────────────────────
 
-function SignatureModal({ onClose, onConfirm, isPending }: {
-  onClose: () => void; onConfirm: (sig: string) => void; isPending: boolean;
+function SignatureModal({ onClose, onConfirm }: {
+  onClose: () => void; onConfirm: (sig: string) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawing = useRef(false);
@@ -708,9 +868,8 @@ function SignatureModal({ onClose, onConfirm, isPending }: {
             if (ctx && canvasRef.current) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
           }} className="flex-1 py-3.5 border rounded-xl text-gray-600 font-medium hover:bg-gray-50">נקה</button>
           <button onClick={() => { const d = canvasRef.current?.toDataURL('image/png'); if (d) onConfirm(d); }}
-            disabled={isPending}
-            className="flex-1 py-3.5 bg-green-600 text-white rounded-xl font-bold disabled:opacity-50 active:scale-[0.98] transition-all">
-            {isPending ? 'שומר...' : 'אשר חתימה'}
+            className="flex-1 py-3.5 bg-green-600 text-white rounded-xl font-bold active:scale-[0.98] transition-all">
+            אשר חתימה
           </button>
         </div>
       </div>

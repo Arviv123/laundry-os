@@ -22,7 +22,7 @@ api.interceptors.response.use(
   (err) => {
     if (err.response?.status === 401) {
       // Don't redirect from public pages
-      const publicPaths = ['/track', '/login'];
+      const publicPaths = ['/track', '/login', '/driver', '/customer-app'];
       const isPublicPage = publicPaths.some(p => window.location.pathname.startsWith(p));
       if (!isPublicPage) {
         localStorage.removeItem('token');
