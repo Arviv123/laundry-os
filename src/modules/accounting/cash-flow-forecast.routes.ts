@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { authenticate } from '../../middleware/auth';
 import { enforceTenantIsolation, withTenant } from '../../middleware/tenant';
+import { requireMinRole } from '../../middleware/rbac';
 import { sendSuccess, sendError } from '../../shared/utils/response';
 import { AuthenticatedRequest } from '../../shared/types/index';
 import { asyncHandler } from '../../shared/utils/asyncHandler';
@@ -13,9 +14,10 @@ import {
 
 const router = Router();
 
-// All cash-flow routes require authentication + tenant isolation
+// All cash-flow routes require authentication + tenant isolation + ACCOUNTANT role
 router.use(authenticate as any);
 router.use(enforceTenantIsolation as any);
+router.use(requireMinRole('ACCOUNTANT') as any);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/cash-flow/forecast

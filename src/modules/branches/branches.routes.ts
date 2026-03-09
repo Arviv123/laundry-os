@@ -144,7 +144,7 @@ router.post('/:id/assign/:employeeId', requireMinRole('ADMIN') as any, asyncHand
 }));
 
 // ─── DELETE /employee/:employeeId/unassign — unassign employee ───────────────
-router.delete('/employee/:employeeId/unassign', asyncHandler(async (req: AuthenticatedRequest, res) => {
+router.delete('/employee/:employeeId/unassign', requireMinRole('ADMIN') as any, asyncHandler(async (req: AuthenticatedRequest, res) => {
   const { employeeId } = req.params;
   const tenantId = req.user!.tenantId;
 

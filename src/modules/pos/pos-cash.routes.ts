@@ -53,7 +53,7 @@ router.get('/drawer/balance', asyncHandler(async (req: AuthenticatedRequest, res
 }));
 
 // POST /api/pos/drawer/cash-in
-router.post('/drawer/cash-in', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/drawer/cash-in', requireMinRole('SALESPERSON') as any, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const schema = z.object({
     sessionId: z.string().cuid(),
     amount:    z.number().positive(),
@@ -87,7 +87,7 @@ router.post('/drawer/cash-in', asyncHandler(async (req: AuthenticatedRequest, re
 }));
 
 // POST /api/pos/drawer/cash-out
-router.post('/drawer/cash-out', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/drawer/cash-out', requireMinRole('ACCOUNTANT') as any, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const schema = z.object({
     sessionId: z.string().cuid(),
     amount:    z.number().positive(),
@@ -127,7 +127,7 @@ router.post('/drawer/cash-out', asyncHandler(async (req: AuthenticatedRequest, r
 }));
 
 // POST /api/pos/drawer/no-sale
-router.post('/drawer/no-sale', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/drawer/no-sale', requireMinRole('SALESPERSON') as any, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const schema = z.object({
     sessionId: z.string().cuid(),
     reason:    z.string().optional(),
@@ -159,7 +159,7 @@ router.post('/drawer/no-sale', asyncHandler(async (req: AuthenticatedRequest, re
 }));
 
 // POST /api/pos/drawer/count
-router.post('/drawer/count', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/drawer/count', requireMinRole('SALESPERSON') as any, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const schema = z.object({
     sessionId:  z.string().cuid(),
     bills_200:  z.number().int().min(0).default(0),

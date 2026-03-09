@@ -40,6 +40,8 @@ import BankReconciliationPage from './pages/BankReconciliationPage';
 import CashFlowForecastPage from './pages/CashFlowForecastPage';
 import RFIDPage from './pages/RFIDPage';
 import SupportPage from './pages/SupportPage';
+import DriverAppPage from './pages/DriverAppPage';
+import CustomerAppPage from './pages/CustomerAppPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token, isLoading } = useAuth();
@@ -54,6 +56,8 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/track" element={<TrackOrderPage />} />
+      <Route path="/driver" element={<ProtectedRoute><DriverAppPage /></ProtectedRoute>} />
+      <Route path="/customer-app" element={<CustomerAppPage />} />
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index element={<DashboardPage />} />
         <Route path="orders" element={<OrdersPage />} />

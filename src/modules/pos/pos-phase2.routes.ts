@@ -911,6 +911,7 @@ router.get(
 // POST /api/pos/transactions/:id/partial-refund
 router.post(
   '/transactions/:id/partial-refund',
+  requireMinRole('ACCOUNTANT') as any,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const schema = z.object({
       lines:  z.array(z.object({

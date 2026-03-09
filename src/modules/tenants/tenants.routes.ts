@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import rateLimit from 'express-rate-limit';
 import { authenticate } from '../../middleware/auth';
 import { requireRole } from '../../middleware/rbac';
+import { enforceTenantIsolation } from '../../middleware/tenant';
 import { AuthenticatedRequest } from '../../shared/types';
 import { sendSuccess, sendError } from '../../shared/utils/response';
 import { asyncHandler } from '../../shared/utils/asyncHandler';
@@ -123,6 +124,7 @@ router.post(
 // ─── Protected Routes (require auth) ─────────────────────────────
 
 router.use(authenticate as any);
+router.use(enforceTenantIsolation as any);
 
 // GET /tenants/me — current tenant info
 router.get(

@@ -158,4 +158,126 @@ router.get('/me', asyncHandler(async (req: Request, res: Response) => {
   sendSuccess(res, customer);
 }));
 
+// ─── Helper: extract & verify customer JWT ──────────────────────
+
+function extractCustomerPayload(req: Request): { customerId: string; tenantId: string } | null {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  try {
+    const payload = jwt.verify(authHeader.split(' ')[1], process.env.JWT_SECRET!) as any;
+    if (!payload.customerId) return null;
+    return { customerId: payload.customerId, tenantId: payload.tenantId };
+  } catch {
+    return null;
+  }
+}
+
+// ─── GET /customer-auth/orders — all orders ─────────────────────
+
+router.get('/orders', asyncHandler(async (req: Request, res: Response) => {
+  const payload = extractCustomerPayload(req);
+  if (!payload) return sendError(res, 'Unauthorized', 401);
+
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
+  const status = req.query.status as string | undefined;
+
+  const where: any = { customerId: payload.customerId, tenantId: payload.tenantId };
+  if (status) where.status = status;
+
+  const [orders, total] = await Promise.all([
+    prisma.laundryOrder.findMany({
+      where,
+      include: { items: { include: { service: true } } },
+      orderBy: { receivedAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.laundryOrder.count({ where }),
+  ]);
+
+  sendSuccess(res, { orders, total, page, totalPages: Math.ceil(total / limit) });
+}));
+
+// ─── POST /customer-auth/orders — request pickup ────────────────
+
+const pickupSchema = z.object({
+  address: z.object({
+    street: z.string().min(1),
+    city: z.string().min(1),
+    floor: z.string().optional(),
+    apartment: z.string().optional(),
+    notes: z.string().optional(),
+  }),
+  notes: z.string().optional(),
+  preferredDate: z.string().optional(),
+  preferredTime: z.string().optional(),
+});
+
+router.post('/orders', asyncHandler(async (req: Request, res: Response) => {
+  const payload = extractCustomerPayload(req);
+  if (!payload) return sendError(res, 'Unauthorized', 401);
+
+  const parsed = pickupSchema.safeParse(req.body);
+  if (!parsed.success) return sendError(res, parsed.error.message, 400);
+
+  const { address, notes, preferredDate, preferredTime } = parsed.data;
+
+  const orderNumber = `ORD-${new Date().getFullYear()}-PICK-${Date.now().toString(36).toUpperCase()}`;
+
+  const order = await prisma.laundryOrder.create({
+    data: {
+      tenantId: payload.tenantId,
+      orderNumber,
+      customerId: payload.customerId,
+      status: 'PENDING_PICKUP',
+      priority: 'NORMAL',
+      source: 'ONLINE',
+      deliveryType: 'HOME_DELIVERY',
+      deliveryAddress: address,
+      notes: [notes, preferredTime ? `זמן מועדף: ${preferredTime}` : ''].filter(Boolean).join(' | ') || 'בקשת איסוף מהאפליקציה',
+      promisedAt: preferredDate ? new Date(preferredDate) : undefined,
+      subtotal: 0,
+      deliveryFee: 0,
+      vatAmount: 0,
+      total: 0,
+      statusHistory: [{ status: 'PENDING_PICKUP', changedAt: new Date(), note: 'בקשת איסוף מאפליקציית לקוח' }],
+    },
+  });
+
+  sendSuccess(res, order, 201);
+}));
+
+// ─── GET /customer-auth/prepaid — prepaid balance ───────────────
+
+router.get('/prepaid', asyncHandler(async (req: Request, res: Response) => {
+  const payload = extractCustomerPayload(req);
+  if (!payload) return sendError(res, 'Unauthorized', 401);
+
+  const account = await prisma.prepaidAccount.findFirst({
+    where: { customerId: payload.customerId, tenantId: payload.tenantId },
+  });
+
+  sendSuccess(res, account ?? { balance: 0, currency: 'ILS' });
+}));
+
+// ─── PATCH /customer-auth/profile — update name ─────────────────
+
+router.patch('/profile', asyncHandler(async (req: Request, res: Response) => {
+  const payload = extractCustomerPayload(req);
+  if (!payload) return sendError(res, 'Unauthorized', 401);
+
+  const { name, email } = z.object({
+    name: z.string().min(1).optional(),
+    email: z.string().email().optional(),
+  }).parse(req.body);
+
+  const customer = await prisma.customer.update({
+    where: { id: payload.customerId },
+    data: { ...(name && { name }), ...(email && { email }) },
+  });
+
+  sendSuccess(res, customer);
+}));
+
 export default router;

@@ -584,7 +584,7 @@ router.post('/receipt-template/preview', requireMinRole('ADMIN') as any, asyncHa
 // ─────────────────────────────────────────────────────────────────────────────
 
 // POST /pos/returns/with-receipt
-router.post('/returns/with-receipt', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/returns/with-receipt', requireMinRole('SALESPERSON') as any, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const schema = z.object({
     originalTransactionId: z.string(),
     items: z.array(z.object({
@@ -720,7 +720,7 @@ router.post('/returns/without-receipt', requireMinRole('ACCOUNTANT') as any, asy
 }));
 
 // POST /pos/returns/exchange
-router.post('/returns/exchange', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+router.post('/returns/exchange', requireMinRole('SALESPERSON') as any, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const schema = z.object({
     originalTransactionId: z.string().optional(),
     returnItems: z.array(z.object({

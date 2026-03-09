@@ -66,6 +66,58 @@ router.get('/runs/my', asyncHandler(async (req: AuthenticatedRequest, res: Respo
   sendSuccess(res, runs);
 }));
 
+// ─── My Completed Runs (history) ────────────────────────────────
+
+router.get('/runs/my/history', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 20));
+  const page = Math.max(1, Number(req.query.page) || 1);
+
+  const where = {
+    tenantId: req.user.tenantId,
+    driverId: req.user.userId,
+    status: 'COMPLETED_RUN' as const,
+  };
+
+  const [runs, total] = await Promise.all([
+    prisma.deliveryRun.findMany({
+      where,
+      include: {
+        stops: { orderBy: { sortOrder: 'asc' }, select: { id: true, status: true, type: true, completedTime: true } },
+      },
+      orderBy: { date: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.deliveryRun.count({ where }),
+  ]);
+
+  sendSuccess(res, { runs, total, page, totalPages: Math.ceil(total / limit) });
+}));
+
+// ─── My Stats (daily summary) ───────────────────────────────────
+
+router.get('/runs/my/stats', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const [todayRuns, totalRuns, totalStops] = await Promise.all([
+    prisma.deliveryRun.count({
+      where: { tenantId: req.user.tenantId, driverId: req.user.userId, date: { gte: today } },
+    }),
+    prisma.deliveryRun.count({
+      where: { tenantId: req.user.tenantId, driverId: req.user.userId, status: 'COMPLETED_RUN' },
+    }),
+    prisma.deliveryStop.count({
+      where: {
+        deliveryRun: { tenantId: req.user.tenantId, driverId: req.user.userId },
+        status: 'STOP_COMPLETED',
+      },
+    }),
+  ]);
+
+  sendSuccess(res, { todayRuns, totalCompletedRuns: totalRuns, totalCompletedStops: totalStops });
+}));
+
 // ─── List Runs ───────────────────────────────────────────────────
 
 router.get('/runs', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {

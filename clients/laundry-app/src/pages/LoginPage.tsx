@@ -10,7 +10,7 @@ export default function LoginPage() {
   const redirectTo = searchParams.get('redirect') || '/';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [tenantId, setTenantId] = useState('laundry-demo-tenant');
+  const [tenantId, setTenantId] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -53,7 +53,7 @@ export default function LoginPage() {
             <input
               type="password" value={password} onChange={e => setPassword(e.target.value)}
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Admin1234!" required
+              placeholder="הזן סיסמה" required
             />
           </div>
           <div>
